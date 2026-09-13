@@ -12,16 +12,20 @@
         .container { max-width: 520px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
         h2 { color: #2c3e50; margin-bottom: 5px; }
         p.subtitle { color: #666; font-size: 14px; margin-top: 0; }
-        #webcam-container { margin: 15px 0; position: relative; display: inline-block; }
-        canvas { border-radius: 12px; border: 3px solid #e2e8f0; }
-        .btn { background-color: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.2s; }
-        .btn:hover { background-color: #2563eb; }
         
-        /* สไตล์ส่วนแสดงผลการทำนาย */
+        #webcam-container { margin: 15px auto; width: 300px; height: 300px; position: relative; display: flex; justify-content: center; align-items: center; background: #e2e8f0; border-radius: 12px; overflow: hidden; border: 3px solid #cbd5e1; }
+        canvas { border-radius: 8px; }
+        
+        .button-group { margin: 15px 0; }
+        .btn { background-color: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.2s; margin: 5px; }
+        .btn:hover { background-color: #2563eb; }
+        .btn-scan { background-color: #10b981; }
+        .btn-scan:hover { background-color: #059669; }
+        .btn:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        
         #prediction-list { margin-top: 15px; text-align: left; }
         .pred-box { padding: 10px 14px; margin: 6px 0; background: #f8fafc; border-radius: 8px; border-left: 4px solid #cbd5e1; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; }
         
-        /* สไตล์ส่วนกล่องคำแนะนำ */
         #recommendation-box { margin-top: 20px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; text-align: left; display: none; }
         #recommendation-box h3 { margin-top: 0; color: #1e40af; font-size: 16px; display: flex; align-items: center; gap: 6px; }
         #recommendation-box ul { margin: 8px 0 0 20px; padding: 0; font-size: 14px; color: #1e293b; }
@@ -34,14 +38,19 @@
 
 <div class="container">
     <h2>ระบบวิเคราะห์สภาพผิวหน้า</h2>
-    <p class="subtitle">ส่องหน้าให้อยู่ในระยะสว่าง แล้วกดปุ่มเพื่อเริ่มวิเคราะห์</p>
+    <p class="subtitle">เปิดกล้อง จัดหน้าให้อยู่ในระยะ แล้วกดปุ่มถ่ายเพื่อวิเคราะห์</p>
     
-    <button type="button" class="btn" onclick="init()">เปิดกล้องสแกนผิว</button>
+    <div id="webcam-container">
+        <span id="cam-placeholder" style="color: #64748b;">กด "เปิดกล้อง" เพื่อเริ่ม</span>
+    </div>
+
+    <div class="button-group">
+        <button type="button" id="start-btn" class="btn" onclick="init()">เปิดกล้อง</button>
+        <button type="button" id="scan-btn" class="btn btn-scan" onclick="takeSnapshotAndPredict()" disabled>📸 ถ่ายภาพและวิเคราะห์</button>
+    </div>
     
-    <div id="webcam-container"></div>
     <div id="prediction-list"></div>
     
-    <!-- กล่องแสดงคำแนะนำตามสภาพผิว -->
     <div id="recommendation-box">
         <h3 id="rec-title">💡 คำแนะนำการดูแลผิว</h3>
         <div id="rec-content"></div>
@@ -51,12 +60,11 @@
 </div>
 
 <script type="text/javascript">
-    // ⚠️ เปลี่ยน URL ตรงนี้เป็น URL โมเดลที่ Export ได้จาก Teachable Machine
     const URL = "https://teachablemachine.withgoogle.com/models/Ng2C2eavO/";
 
     let model, webcam, predictionList, maxPredictions;
+    let isCameraActive = false;
 
-    // ข้อมูลคำแนะนำสกินแคร์และการดูแลรักษาสำหรับแต่ละสภาพผิว
     const adviceData = {
         "Normal": {
             title: "ผลการวิเคราะห์: ผิวปกติ (Normal Skin)",
@@ -88,8 +96,13 @@
     };
 
     async function init() {
+        if (isCameraActive) return;
+
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
+
+        document.getElementById("start-btn").disabled = true;
+        document.getElementById("start-btn").innerText = "กำลังโหลด...";
 
         model = await tmImage.load(modelURL, metadataURL);
         maxPredictions = model.getTotalClasses();
@@ -100,7 +113,10 @@
         await webcam.play();
         window.requestAnimationFrame(loop);
 
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        const container = document.getElementById("webcam-container");
+        container.innerHTML = ""; // ล้างข้อความและลบ Canvas เก่าทิ้ง ป้องกันภาพซ้อน
+        container.appendChild(webcam.canvas);
+        
         predictionList = document.getElementById("prediction-list");
         predictionList.innerHTML = "";
         for (let i = 0; i < maxPredictions; i++) {
@@ -108,15 +124,23 @@
             div.className = "pred-box";
             predictionList.appendChild(div);
         }
+
+        isCameraActive = true;
+        document.getElementById("start-btn").innerText = "กล้องทำงานอยู่";
+        document.getElementById("scan-btn").disabled = false;
     }
 
     async function loop() {
-        webcam.update(); 
-        await predict();
-        window.requestAnimationFrame(loop);
+        if (isCameraActive) {
+            webcam.update();
+            window.requestAnimationFrame(loop);
+        }
     }
 
-    async function predict() {
+    // ทำนายผลเฉพาะตอนที่ผู้ใช้งานกดปุ่มสแกนเท่านั้น
+    async function takeSnapshotAndPredict() {
+        if (!model || !webcam) return;
+        
         const prediction = await model.predict(webcam.canvas);
         
         let highestProbability = 0;
@@ -129,14 +153,12 @@
             
             predictionList.childNodes[i].innerHTML = `<span>${className}</span> <span>${percentage}%</span>`;
             
-            // หาคลาสที่มีค่าเปอร์เซ็นต์สูงสุด
             if (prob > highestProbability) {
                 highestProbability = prob;
                 topClass = className;
             }
         }
 
-        // แสดงคำแนะนำของคลาสที่มีเปอร์เซ็นต์สูงสุด
         updateRecommendation(topClass, highestProbability);
     }
 
@@ -145,8 +167,7 @@
         const recTitle = document.getElementById("rec-title");
         const recContent = document.getElementById("rec-content");
 
-        // ถ้าค่าความมั่นใจมากกว่า 50% ให้แสดงคำแนะนำ
-        if (probability > 0.5 && adviceData[className]) {
+        if (adviceData[className]) {
             recBox.style.display = "block";
             recTitle.innerHTML = `💡 ${adviceData[className].title}`;
             recTitle.style.color = adviceData[className].color;
