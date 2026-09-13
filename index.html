@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Skin Analyzer - ระบบวิเคราะห์สภาพผิวหน้า</title>
+    <!-- Load TensorFlow.js and BlazeFace for accurate Face Detection -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -47,9 +49,9 @@
         .face-status {
             font-size: 13px;
             font-weight: 500;
-            padding: 6px 12px;
-            border-radius: 8px;
-            margin-bottom: 12px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            margin-bottom: 14px;
             display: none;
             transition: all 0.3s ease;
         }
@@ -155,7 +157,7 @@
     <h2>วิเคราะห์สภาพผิวหน้า</h2>
     <p class="subtitle">ส่องหน้าให้อยู่ในกรอบ และปรับระยะตามคำแนะนำ</p>
     
-    <div id="face-status" class="face-status"></div>
+    <div id="face-status" class="face-status">กำลังโหลดระบบตรวจจับใบหน้า...</div>
 
     <div id="cam-wrapper" class="cam-wrapper">
         <div id="scan-line" class="scan-line"></div>
@@ -183,7 +185,7 @@
 <script type="text/javascript">
     const URL = "https://teachablemachine.withgoogle.com/models/Ng2C2eavO/";
 
-    let model, webcam, maxPredictions;
+    let model, webcam, faceModel, maxPredictions;
     let isCameraActive = false;
     let isFrozen = false;
     let isPositionGood = false;
@@ -223,13 +225,15 @@
 
         const startBtn = document.getElementById("start-btn");
         startBtn.disabled = true;
-        startBtn.innerText = "กำลังโหลด...";
+        startBtn.innerText = "กำลังโหลดระบบ...";
 
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
 
+        // โหลด Teachable Machine + Face Detector Model
         model = await tmImage.load(modelURL, metadataURL);
         maxPredictions = model.getTotalClasses();
+        faceModel = await blazeface.load();
 
         webcam = new tmImage.Webcam(280, 280, true); 
         await webcam.setup(); 
@@ -251,39 +255,49 @@
     async function loop() {
         if (isCameraActive && !isFrozen) {
             webcam.update();
-            checkFaceDistance();
+            await checkFaceDistance();
             window.requestAnimationFrame(loop);
         }
     }
 
-    // ฟังก์ชันประเมินความมั่นใจของโมเดลสดๆ เพื่อตรวจสอบระยะใบหน้า
+    // ตรวจสอบระยะใบหน้าด้วยการวัดขนาดพิกเซลใบหน้าจริงบนจอ
     async function checkFaceDistance() {
-        if (!model || !webcam.canvas) return;
+        if (!faceModel || !webcam.canvas) return;
 
-        const prediction = await model.predict(webcam.canvas);
-        let maxProb = 0;
-        for (let i = 0; i < maxPredictions; i++) {
-            if (prediction[i].probability > maxProb) {
-                maxProb = prediction[i].probability;
-            }
-        }
+        const returnTensors = false;
+        const predictions = await faceModel.estimateFaces(webcam.canvas, returnTensors);
 
         const camWrapper = document.getElementById("cam-wrapper");
         const statusDiv = document.getElementById("face-status");
         const scanBtn = document.getElementById("scan-btn");
 
-        // หาก AI มั่นใจเกิน 70% แสดงว่าตำแหน่งและระยะหน้าได้ระดับที่เหมาะสมแล้ว
-        if (maxProb >= 0.70) {
-            isPositionGood = true;
-            camWrapper.className = "cam-wrapper border-ok";
-            statusDiv.className = "face-status status-ok";
-            statusDiv.innerHTML = "✅ ตำแหน่งใบหน้าเหมาะสมแล้ว พร้อมสแกน";
-            scanBtn.disabled = false;
+        if (predictions.length > 0) {
+            const face = predictions[0];
+            const start = face.topLeft;
+            const end = face.bottomRight;
+            
+            const faceWidth = end[0] - start[0];
+            const faceHeight = end[1] - start[1];
+            
+            // คำนวณความกว้างหน้าเทียบกับกล่องกล้อง 280px (ถ้าหน้ากว้างเกิน 145px ถือว่าใกล้พอดี)
+            if (faceWidth >= 145 && faceHeight >= 145) {
+                isPositionGood = true;
+                camWrapper.className = "cam-wrapper border-ok";
+                statusDiv.className = "face-status status-ok";
+                statusDiv.innerHTML = "✅ ตำแหน่งใบหน้าเหมาะสมแล้ว พร้อมสแกน";
+                scanBtn.disabled = false;
+            } else {
+                isPositionGood = false;
+                camWrapper.className = "cam-wrapper border-warn";
+                statusDiv.className = "face-status status-warn";
+                statusDiv.innerHTML = "⚠️ ขยับหน้าให้เข้าใกล้ขึ้นเพื่อความแม่นยำ";
+                scanBtn.disabled = true;
+            }
         } else {
             isPositionGood = false;
             camWrapper.className = "cam-wrapper border-warn";
             statusDiv.className = "face-status status-warn";
-            statusDiv.innerHTML = "⚠️ ขยับหน้าให้เข้าใกล้ขึ้นเพื่อความแม่นยำ";
+            statusDiv.innerHTML = "⚠️ ไม่พบใบหน้า กรุณาส่องหน้าให้อยู่ในกรอบ";
             scanBtn.disabled = true;
         }
     }
