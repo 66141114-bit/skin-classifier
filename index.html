@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบวิเคราะห์และแนะนำการดูแลสภาพผิวหน้า</title>
+    <!-- โหลดไลบรารี TensorFlow.js และ Teachable Machine -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <style>
+        body { font-family: 'Sukhumvit Set', Arial, sans-serif; text-align: center; background-color: #f0f4f8; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 520px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+        h2 { color: #2c3e50; margin-bottom: 5px; }
+        p.subtitle { color: #666; font-size: 14px; margin-top: 0; }
+        #webcam-container { margin: 15px 0; position: relative; display: inline-block; }
+        canvas { border-radius: 12px; border: 3px solid #e2e8f0; }
+        .btn { background-color: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.2s; }
+        .btn:hover { background-color: #2563eb; }
+        
+        /* สไตล์ส่วนแสดงผลการทำนาย */
+        #prediction-list { margin-top: 15px; text-align: left; }
+        .pred-box { padding: 10px 14px; margin: 6px 0; background: #f8fafc; border-radius: 8px; border-left: 4px solid #cbd5e1; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; }
+        
+        /* สไตล์ส่วนกล่องคำแนะนำ */
+        #recommendation-box { margin-top: 20px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; text-align: left; display: none; }
+        #recommendation-box h3 { margin-top: 0; color: #1e40af; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+        #recommendation-box ul { margin: 8px 0 0 20px; padding: 0; font-size: 14px; color: #1e293b; }
+        #recommendation-box li { margin-bottom: 6px; }
+        
+        .disclaimer { font-size: 12px; color: #94a3b8; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>ระบบวิเคราะห์สภาพผิวหน้า</h2>
+    <p class="subtitle">ส่องหน้าให้อยู่ในระยะสว่าง แล้วกดปุ่มเพื่อเริ่มวิเคราะห์</p>
+    
+    <button type="button" class="btn" onclick="init()">เปิดกล้องสแกนผิว</button>
+    
+    <div id="webcam-container"></div>
+    <div id="prediction-list"></div>
+    
+    <!-- กล่องแสดงคำแนะนำตามสภาพผิว -->
+    <div id="recommendation-box">
+        <h3 id="rec-title">💡 คำแนะนำการดูแลผิว</h3>
+        <div id="rec-content"></div>
+    </div>
+    
+    <p class="disclaimer">* หมายเหตุ: เป็นการประเมินเบื้องต้นด้วย AI ไม่สามารถใช้แทนการวินิจฉัยทางการแพทย์ได้</p>
+</div>
+
+<script type="text/javascript">
+    // ⚠️ เปลี่ยน URL ตรงนี้เป็น URL โมเดลที่ Export ได้จาก Teachable Machine
+    const URL = "https://teachablemachine.withgoogle.com/models/Ng2C2eavO/";
+
+    let model, webcam, predictionList, maxPredictions;
+
+    // ข้อมูลคำแนะนำสกินแคร์และการดูแลรักษาสำหรับแต่ละสภาพผิว
+    const adviceData = {
+        "Normal": {
+            title: "ผลการวิเคราะห์: ผิวปกติ (Normal Skin)",
+            advice: [
+                "<b>การดูแล:</b> รักษาสมดุลผิวด้วยการทำความสะอาดอย่างอ่อนโยน ทากันแดดเป็นประจำทุกวัน",
+                "<b>สกินแคร์ที่แนะนำ:</b> คลีนเซอร์สูตรอ่อนโยน, มอยส์เจอไรเซอร์เนื้อโลชั่นเบาบาง, ครีมกันแดด SPF 30 ขึ้นไป",
+                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงการใช้ผลิตภัณฑ์ที่ผลัดเซลล์ผิวรุนแรงเกินไปเพื่อคงเกราะป้องกันผิว"
+            ],
+            color: "#10b981"
+        },
+        "Oily": {
+            title: "ผลการวิเคราะห์: ผิวมัน (Oily Skin)",
+            advice: [
+                "<b>การดูแล:</b> เน้นการควบคุมความมันส่วนเกิน กระชับรูขุมขน และล้างหน้าวันละ 2 ครั้ง",
+                "<b>สกินแคร์ที่แนะนำ:</b> คลีนเซอร์สูตร Gel หรือ Foam, มอยส์เจอไรเซอร์เนื้อ Gel/Water-based (Oil-Free), ส่วนผสม Salicylic Acid (BHA) หรือ Niacinamide",
+                "<b>ข้อควรระวัง:</b> ห้ามข้ามการทามอยส์เจอไรเซอร์ เพราะอาจทำให้ผิวผลิตน้ำมันออกมามากกว่าเดิม"
+            ],
+            color: "#f59e0b"
+        },
+        "Dry": {
+            title: "ผลการวิเคราะห์: ผิวแห้ง (Dry Skin)",
+            advice: [
+                "<b>การดูแล:</b> เติมความชุ่มชื้นล้ำลึก เสริมเกราะป้องกันผิวเพื่อลดอาการลอกเป็นขุยหรือตึงผิว",
+                "<b>สกินแคร์ที่แนะนำ:</b> คลีนเซอร์เนื้อครีม/นม, มอยส์เจอไรเซอร์เนื้อ Cream เข้มข้น, ส่วนผสม Hyaluronic Acid, Ceramides หรือ Fatty Acids",
+                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงโฟมล้างหน้าที่มีสารโฟมแรงๆ (SLS/SLES) และน้ำอุ่นจัดในการล้างหน้า"
+            ],
+            color: "#3b82f6"
+        }
+    };
+
+    async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        const flip = true; 
+        webcam = new tmImage.Webcam(300, 300, flip); 
+        await webcam.setup(); 
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        predictionList = document.getElementById("prediction-list");
+        predictionList.innerHTML = "";
+        for (let i = 0; i < maxPredictions; i++) {
+            const div = document.createElement("div");
+            div.className = "pred-box";
+            predictionList.appendChild(div);
+        }
+    }
+
+    async function loop() {
+        webcam.update(); 
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        
+        let highestProbability = 0;
+        let topClass = "";
+
+        for (let i = 0; i < maxPredictions; i++) {
+            const prob = prediction[i].probability;
+            const percentage = (prob * 100).toFixed(1);
+            const className = prediction[i].className;
+            
+            predictionList.childNodes[i].innerHTML = `<span>${className}</span> <span>${percentage}%</span>`;
+            
+            // หาคลาสที่มีค่าเปอร์เซ็นต์สูงสุด
+            if (prob > highestProbability) {
+                highestProbability = prob;
+                topClass = className;
+            }
+        }
+
+        // แสดงคำแนะนำของคลาสที่มีเปอร์เซ็นต์สูงสุด
+        updateRecommendation(topClass, highestProbability);
+    }
+
+    function updateRecommendation(className, probability) {
+        const recBox = document.getElementById("recommendation-box");
+        const recTitle = document.getElementById("rec-title");
+        const recContent = document.getElementById("rec-content");
+
+        // ถ้าค่าความมั่นใจมากกว่า 50% ให้แสดงคำแนะนำ
+        if (probability > 0.5 && adviceData[className]) {
+            recBox.style.display = "block";
+            recTitle.innerHTML = `💡 ${adviceData[className].title}`;
+            recTitle.style.color = adviceData[className].color;
+            
+            let html = "<ul>";
+            adviceData[className].advice.forEach(item => {
+                html += `<li>${item}</li>`;
+            });
+            html += "</ul>";
+            
+            recContent.innerHTML = html;
+        }
+    }
+</script>
+
+</body>
+</html>
