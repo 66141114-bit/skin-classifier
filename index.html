@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Skin Analyzer - ระบบวิเคราะห์สภาพผิวหน้า</title>
-    <!-- Load TensorFlow.js and BlazeFace for accurate Face Detection -->
+    <!-- TensorFlow.js, BlazeFace, Teachable Machine -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
@@ -45,7 +45,6 @@
         h2 { color: #1e293b; margin: 0 0 6px 0; font-size: 24px; font-weight: 600; }
         p.subtitle { color: #64748b; font-size: 13px; margin: 0 0 15px 0; }
 
-        /* สถานะแจ้งเตือนระยะหน้า */
         .face-status {
             font-size: 13px;
             font-weight: 500;
@@ -62,7 +61,7 @@
             position: relative;
             width: 280px;
             height: 280px;
-            margin: 0 auto 20px;
+            margin: 0 auto 15px;
             border-radius: 20px;
             overflow: hidden;
             background: #1e293b;
@@ -74,7 +73,6 @@
             align-items: center;
         }
         
-        /* กรอบแสดงสถานะสี */
         .cam-wrapper.border-ok {
             border-color: #22c55e !important;
             box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
@@ -84,7 +82,12 @@
             box-shadow: 0 0 15px rgba(249, 115, 22, 0.3);
         }
 
-        #webcam-container canvas { border-radius: 14px; width: 100% !important; height: 100% !important; object-fit: cover; }
+        #webcam-container canvas, #uploaded-image { 
+            border-radius: 14px; 
+            width: 100% !important; 
+            height: 100% !important; 
+            object-fit: cover; 
+        }
         
         .scan-line {
             display: none;
@@ -101,20 +104,22 @@
             100% { top: 0; }
         }
 
-        .button-group { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        .button-group { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
         .btn { 
-            flex: 1;
-            padding: 12px 18px; 
+            flex: 1 1 calc(50% - 10px);
+            padding: 10px 14px; 
             border: none; 
             border-radius: 12px; 
             cursor: pointer; 
-            font-size: 15px; 
+            font-size: 14px; 
             font-weight: 500; 
             font-family: 'Kanit', sans-serif;
             transition: all 0.3s ease; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
+        .btn-full { flex: 1 1 100%; }
         .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
+        .btn-secondary { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
         .btn-scan { background: linear-gradient(135deg, #10b981, #059669); color: white; }
         .btn-rescan { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; display: none; }
         .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
@@ -155,21 +160,26 @@
 <div class="container">
     <span class="badge">✨ AI Skin Analysis</span>
     <h2>วิเคราะห์สภาพผิวหน้า</h2>
-    <p class="subtitle">ส่องหน้าให้อยู่ในกรอบ และปรับระยะตามคำแนะนำ</p>
+    <p class="subtitle">ส่องหน้าให้อยู่ในกรอบ หรืออัปโหลดรูปภาพจากเครื่อง</p>
     
-    <div id="face-status" class="face-status">กำลังโหลดระบบตรวจจับใบหน้า...</div>
+    <div id="face-status" class="face-status"></div>
 
     <div id="cam-wrapper" class="cam-wrapper">
         <div id="scan-line" class="scan-line"></div>
         <div id="webcam-container">
-            <span id="cam-placeholder" style="color: #94a3b8; font-size: 14px;">กด "เปิดกล้อง" เพื่อเริ่มต้น</span>
+            <span id="cam-placeholder" style="color: #94a3b8; font-size: 14px;">เลือกเปิดกล้อง หรืออัปโหลดรูปภาพ</span>
         </div>
+        <img id="uploaded-image" style="display: none;" alt="Uploaded Face">
     </div>
+
+    <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
 
     <div class="button-group">
         <button type="button" id="start-btn" class="btn btn-primary" onclick="init()">📷 เปิดกล้อง</button>
-        <button type="button" id="scan-btn" class="btn btn-scan" onclick="takeSnapshotAndPredict()" disabled>🔍 วิเคราะห์ผิว</button>
-        <button type="button" id="rescan-btn" class="btn btn-rescan" onclick="resetCamera()">🔄 ถ่ายใหม่</button>
+        <button type="button" id="upload-btn" class="btn btn-secondary" onclick="document.getElementById('image-upload').click()">📁 อัปโหลดรูป</button>
+        <button type="button" id="switch-btn" class="btn btn-secondary" onclick="switchCamera()" style="display: none;">🔄 สลับกล้อง</button>
+        <button type="button" id="scan-btn" class="btn btn-scan btn-full" onclick="takeSnapshotAndPredict()" style="display: none;" disabled>🔍 วิเคราะห์ผิว</button>
+        <button type="button" id="rescan-btn" class="btn btn-rescan btn-full" onclick="resetApp()">🔄 เริ่มใหม่</button>
     </div>
     
     <div id="prediction-list"></div>
@@ -189,6 +199,8 @@
     let isCameraActive = false;
     let isFrozen = false;
     let isPositionGood = false;
+    let isUploadMode = false;
+    let facingMode = "user"; // "user" = กล้องหน้า, "environment" = กล้องหลัง
 
     const adviceData = {
         "Normal": {
@@ -220,56 +232,75 @@
         }
     };
 
-    async function init() {
-        if (isCameraActive) return;
+    async function loadModels() {
+        if (!model) {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+        }
+        if (!faceModel) {
+            faceModel = await blazeface.load();
+        }
+    }
 
+    async function init() {
         const startBtn = document.getElementById("start-btn");
         startBtn.disabled = true;
-        startBtn.innerText = "กำลังโหลดระบบ...";
+        startBtn.innerText = "กำลังโหลด...";
 
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
+        await loadModels();
 
-        // โหลด Teachable Machine + Face Detector Model
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
-        faceModel = await blazeface.load();
+        if (webcam) {
+            await webcam.stop();
+        }
 
-        webcam = new tmImage.Webcam(280, 280, true); 
-        await webcam.setup(); 
+        const flip = facingMode === "user";
+        webcam = new tmImage.Webcam(280, 280, flip); 
+        await webcam.setup({ facingMode: facingMode }); 
         await webcam.play();
         
         isCameraActive = true;
         isFrozen = false;
-        window.requestAnimationFrame(loop);
-
+        isUploadMode = false;
+        
+        document.getElementById("uploaded-image").style.display = "none";
         const container = document.getElementById("webcam-container");
+        container.style.display = "block";
         container.innerHTML = ""; 
         container.appendChild(webcam.canvas);
         
-        startBtn.style.display = "none";
+        document.getElementById("start-btn").style.display = "none";
+        document.getElementById("upload-btn").style.display = "none";
+        document.getElementById("switch-btn").style.display = "inline-block";
         document.getElementById("scan-btn").style.display = "block";
         document.getElementById("face-status").style.display = "block";
+        
+        window.requestAnimationFrame(loop);
+    }
+
+    async function switchCamera() {
+        facingMode = facingMode === "user" ? "environment" : "user";
+        await init();
     }
 
     async function loop() {
-        if (isCameraActive && !isFrozen) {
+        if (isCameraActive && !isFrozen && !isUploadMode) {
             webcam.update();
-            await checkFaceDistance();
+            await checkFaceDistance(webcam.canvas);
             window.requestAnimationFrame(loop);
         }
     }
 
-    // ตรวจสอบระยะใบหน้าด้วยการวัดขนาดพิกเซลใบหน้าจริงบนจอ
-    async function checkFaceDistance() {
-        if (!faceModel || !webcam.canvas) return;
+    async function checkFaceDistance(imageElement) {
+        if (!faceModel) return;
 
-        const returnTensors = false;
-        const predictions = await faceModel.estimateFaces(webcam.canvas, returnTensors);
-
+        const predictions = await faceModel.estimateFaces(imageElement, false);
         const camWrapper = document.getElementById("cam-wrapper");
         const statusDiv = document.getElementById("face-status");
         const scanBtn = document.getElementById("scan-btn");
+
+        statusDiv.style.display = "block";
 
         if (predictions.length > 0) {
             const face = predictions[0];
@@ -279,8 +310,7 @@
             const faceWidth = end[0] - start[0];
             const faceHeight = end[1] - start[1];
             
-            // คำนวณความกว้างหน้าเทียบกับกล่องกล้อง 280px (ถ้าหน้ากว้างเกิน 145px ถือว่าใกล้พอดี)
-            if (faceWidth >= 145 && faceHeight >= 145) {
+            if (faceWidth >= 135 && faceHeight >= 135) {
                 isPositionGood = true;
                 camWrapper.className = "cam-wrapper border-ok";
                 statusDiv.className = "face-status status-ok";
@@ -302,19 +332,55 @@
         }
     }
 
+    async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        await loadModels();
+
+        if (webcam && isCameraActive) {
+            await webcam.stop();
+            isCameraActive = false;
+        }
+
+        isUploadMode = true;
+        const imgElement = document.getElementById("uploaded-image");
+        imgElement.src = window.URL.createObjectURL(file);
+        
+        imgElement.onload = async () => {
+            document.getElementById("webcam-container").style.display = "none";
+            imgElement.style.display = "block";
+            
+            await checkFaceDistance(imgElement);
+
+            document.getElementById("start-btn").style.display = "none";
+            document.getElementById("upload-btn").style.display = "none";
+            document.getElementById("switch-btn").style.display = "none";
+            document.getElementById("scan-btn").style.display = "block";
+        };
+    }
+
     async function takeSnapshotAndPredict() {
-        if (!model || !webcam || isFrozen || !isPositionGood) return;
+        if (!model || !isPositionGood) return;
 
         const scanLine = document.getElementById("scan-line");
         scanLine.style.display = "block";
         document.getElementById("scan-btn").disabled = true;
 
         setTimeout(async () => {
-            isFrozen = true;
-            webcam.pause();
+            let inputElement;
+
+            if (isUploadMode) {
+                inputElement = document.getElementById("uploaded-image");
+            } else {
+                isFrozen = true;
+                webcam.pause();
+                inputElement = webcam.canvas;
+            }
+
             scanLine.style.display = "none";
 
-            const prediction = await model.predict(webcam.canvas);
+            const prediction = await model.predict(inputElement);
             
             let highestProbability = 0;
             let topClass = "";
@@ -351,20 +417,41 @@
             updateRecommendation(topClass);
             
             document.getElementById("scan-btn").style.display = "none";
+            document.getElementById("switch-btn").style.display = "none";
             document.getElementById("rescan-btn").style.display = "block";
         }, 800);
     }
 
-    function resetCamera() {
-        isFrozen = false;
-        webcam.play();
-        window.requestAnimationFrame(loop);
+    async function resetApp() {
+        if (webcam && isCameraActive) {
+            await webcam.stop();
+        }
         
+        isCameraActive = false;
+        isFrozen = false;
+        isUploadMode = false;
+        
+        document.getElementById("cam-wrapper").className = "cam-wrapper";
+        document.getElementById("face-status").style.display = "none";
+        document.getElementById("uploaded-image").style.display = "none";
+        
+        const container = document.getElementById("webcam-container");
+        container.style.display = "block";
+        container.innerHTML = `<span id="cam-placeholder" style="color: #94a3b8; font-size: 14px;">เลือกเปิดกล้อง หรืออัปโหลดรูปภาพ</span>`;
+
         document.getElementById("recommendation-box").style.display = "none";
         document.getElementById("prediction-list").innerHTML = "";
         
-        document.getElementById("scan-btn").style.display = "block";
+        document.getElementById("start-btn").style.display = "inline-block";
+        document.getElementById("start-btn").disabled = false;
+        document.getElementById("start-btn").innerText = "📷 เปิดกล้อง";
+        document.getElementById("upload-btn").style.display = "inline-block";
+        
+        document.getElementById("switch-btn").style.display = "none";
+        document.getElementById("scan-btn").style.display = "none";
         document.getElementById("rescan-btn").style.display = "none";
+        
+        document.getElementById("image-upload").value = "";
     }
 
     function updateRecommendation(className) {
