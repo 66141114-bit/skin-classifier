@@ -3,50 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบวิเคราะห์และแนะนำการดูแลสภาพผิวหน้า</title>
-    <!-- โหลดไลบรารี TensorFlow.js และ Teachable Machine -->
+    <title>AI Skin Analyzer - ระบบวิเคราะห์สภาพผิวหน้า</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Sukhumvit Set', Arial, sans-serif; text-align: center; background-color: #f0f4f8; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 520px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
-        h2 { color: #2c3e50; margin-bottom: 5px; }
-        p.subtitle { color: #666; font-size: 14px; margin-top: 0; }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Kanit', sans-serif; 
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); 
+            min-height: 100vh;
+            margin: 0; 
+            padding: 20px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #2d3748; 
+        }
+        .container { 
+            width: 100%;
+            max-width: 480px; 
+            background: rgba(255, 255, 255, 0.9); 
+            backdrop-filter: blur(10px);
+            padding: 30px 24px; 
+            border-radius: 24px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.12); 
+            text-align: center;
+        }
+        .badge {
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        h2 { color: #1e293b; margin: 0 0 6px 0; font-size: 24px; font-weight: 600; }
+        p.subtitle { color: #64748b; font-size: 13px; margin: 0 0 15px 0; }
+
+        /* สถานะแจ้งเตือนระยะหน้า */
+        .face-status {
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: none;
+            transition: all 0.3s ease;
+        }
+        .status-warn { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+        .status-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
         
-        #webcam-container { margin: 15px auto; width: 300px; height: 300px; position: relative; display: flex; justify-content: center; align-items: center; background: #e2e8f0; border-radius: 12px; overflow: hidden; border: 3px solid #cbd5e1; }
-        canvas { border-radius: 8px; }
+        .cam-wrapper {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            margin: 0 auto 20px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #1e293b;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            border: 5px solid #cbd5e1;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
         
-        .button-group { margin: 15px 0; }
-        .btn { background-color: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.2s; margin: 5px; }
-        .btn:hover { background-color: #2563eb; }
-        .btn-scan { background-color: #10b981; }
-        .btn-scan:hover { background-color: #059669; }
-        .btn:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        /* กรอบแสดงสถานะสี */
+        .cam-wrapper.border-ok {
+            border-color: #22c55e !important;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+        }
+        .cam-wrapper.border-warn {
+            border-color: #f97316 !important;
+            box-shadow: 0 0 15px rgba(249, 115, 22, 0.3);
+        }
+
+        #webcam-container canvas { border-radius: 14px; width: 100% !important; height: 100% !important; object-fit: cover; }
         
-        #prediction-list { margin-top: 15px; text-align: left; }
-        .pred-box { padding: 10px 14px; margin: 6px 0; background: #f8fafc; border-radius: 8px; border-left: 4px solid #cbd5e1; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; }
+        .scan-line {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(90deg, transparent, #22c55e, transparent);
+            box-shadow: 0 0 15px #22c55e;
+            animation: scan 1.5s infinite linear;
+            z-index: 10;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+
+        .button-group { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        .btn { 
+            flex: 1;
+            padding: 12px 18px; 
+            border: none; 
+            border-radius: 12px; 
+            cursor: pointer; 
+            font-size: 15px; 
+            font-weight: 500; 
+            font-family: 'Kanit', sans-serif;
+            transition: all 0.3s ease; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
+        .btn-scan { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+        .btn-rescan { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; display: none; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; filter: grayscale(50%); }
         
-        #recommendation-box { margin-top: 20px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; text-align: left; display: none; }
-        #recommendation-box h3 { margin-top: 0; color: #1e40af; font-size: 16px; display: flex; align-items: center; gap: 6px; }
-        #recommendation-box ul { margin: 8px 0 0 20px; padding: 0; font-size: 14px; color: #1e293b; }
+        #prediction-list { margin-top: 20px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+        .pred-box { 
+            background: #ffffff; 
+            padding: 10px 14px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03); 
+            font-size: 14px; 
+        }
+        .pred-info { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 500; }
+        .progress-bar-bg { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.6s ease; }
+
+        #recommendation-box { 
+            margin-top: 20px; 
+            padding: 18px; 
+            background: #ffffff; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            text-align: left; 
+            display: none; 
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #recommendation-box h3 { margin-top: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        #recommendation-box ul { margin: 10px 0 0 18px; padding: 0; font-size: 13px; color: #475569; line-height: 1.6; }
         #recommendation-box li { margin-bottom: 6px; }
         
-        .disclaimer { font-size: 12px; color: #94a3b8; margin-top: 20px; }
+        .disclaimer { font-size: 11px; color: #94a3b8; margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>ระบบวิเคราะห์สภาพผิวหน้า</h2>
-    <p class="subtitle">เปิดกล้อง จัดหน้าให้อยู่ในระยะ แล้วกดปุ่มถ่ายเพื่อวิเคราะห์</p>
+    <span class="badge">✨ AI Skin Analysis</span>
+    <h2>วิเคราะห์สภาพผิวหน้า</h2>
+    <p class="subtitle">ส่องหน้าให้อยู่ในกรอบ และปรับระยะตามคำแนะนำ</p>
     
-    <div id="webcam-container">
-        <span id="cam-placeholder" style="color: #64748b;">กด "เปิดกล้อง" เพื่อเริ่ม</span>
+    <div id="face-status" class="face-status"></div>
+
+    <div id="cam-wrapper" class="cam-wrapper">
+        <div id="scan-line" class="scan-line"></div>
+        <div id="webcam-container">
+            <span id="cam-placeholder" style="color: #94a3b8; font-size: 14px;">กด "เปิดกล้อง" เพื่อเริ่มต้น</span>
+        </div>
     </div>
 
     <div class="button-group">
-        <button type="button" id="start-btn" class="btn" onclick="init()">เปิดกล้อง</button>
-        <button type="button" id="scan-btn" class="btn btn-scan" onclick="takeSnapshotAndPredict()" disabled>📸 ถ่ายภาพและวิเคราะห์</button>
+        <button type="button" id="start-btn" class="btn btn-primary" onclick="init()">📷 เปิดกล้อง</button>
+        <button type="button" id="scan-btn" class="btn btn-scan" onclick="takeSnapshotAndPredict()" disabled>🔍 วิเคราะห์ผิว</button>
+        <button type="button" id="rescan-btn" class="btn btn-rescan" onclick="resetCamera()">🔄 ถ่ายใหม่</button>
     </div>
     
     <div id="prediction-list"></div>
@@ -56,40 +177,42 @@
         <div id="rec-content"></div>
     </div>
     
-    <p class="disclaimer">* หมายเหตุ: เป็นการประเมินเบื้องต้นด้วย AI ไม่สามารถใช้แทนการวินิจฉัยทางการแพทย์ได้</p>
+    <p class="disclaimer">* การประเมินเบื้องต้นด้วย AI ไม่สามารถใช้แทนการวินิจฉัยทางการแพทย์ได้</p>
 </div>
 
 <script type="text/javascript">
     const URL = "https://teachablemachine.withgoogle.com/models/Ng2C2eavO/";
 
-    let model, webcam, predictionList, maxPredictions;
+    let model, webcam, maxPredictions;
     let isCameraActive = false;
+    let isFrozen = false;
+    let isPositionGood = false;
 
     const adviceData = {
         "Normal": {
-            title: "ผลการวิเคราะห์: ผิวปกติ (Normal Skin)",
+            title: "ผลวิเคราะห์: ผิวปกติ (Normal Skin)",
             advice: [
                 "<b>การดูแล:</b> รักษาสมดุลผิวด้วยการทำความสะอาดอย่างอ่อนโยน ทากันแดดเป็นประจำทุกวัน",
-                "<b>สกินแคร์ที่แนะนำ:</b> คลีนเซอร์สูตรอ่อนโยน, มอยส์เจอไรเซอร์เนื้อโลชั่นเบาบาง, ครีมกันแดด SPF 30 ขึ้นไป",
-                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงการใช้ผลิตภัณฑ์ที่ผลัดเซลล์ผิวรุนแรงเกินไปเพื่อคงเกราะป้องกันผิว"
+                "<b>สกินแคร์แนะนำ:</b> คลีนเซอร์สูตรอ่อนโยน, มอยส์เจอไรเซอร์เนื้อโลชั่นเบาบาง, กันแดด SPF 30+",
+                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงการใช้ผลิตภัณฑ์ที่ผลัดเซลล์ผิวรุนแรงเกินไป"
             ],
             color: "#10b981"
         },
         "Oily": {
-            title: "ผลการวิเคราะห์: ผิวมัน (Oily Skin)",
+            title: "ผลวิเคราะห์: ผิวมัน (Oily Skin)",
             advice: [
                 "<b>การดูแล:</b> เน้นการควบคุมความมันส่วนเกิน กระชับรูขุมขน และล้างหน้าวันละ 2 ครั้ง",
-                "<b>สกินแคร์ที่แนะนำ:</b> คลีนเซอร์สูตร Gel หรือ Foam, มอยส์เจอไรเซอร์เนื้อ Gel/Water-based (Oil-Free), ส่วนผสม Salicylic Acid (BHA) หรือ Niacinamide",
-                "<b>ข้อควรระวัง:</b> ห้ามข้ามการทามอยส์เจอไรเซอร์ เพราะอาจทำให้ผิวผลิตน้ำมันออกมามากกว่าเดิม"
+                "<b>สกินแคร์แนะนำ:</b> คลีนเซอร์สูตร Gel/Foam, มอยส์เจอไรเซอร์ Gel/Water-based (Oil-Free), BHA หรือ Niacinamide",
+                "<b>ข้อควรระวัง:</b> ห้ามข้ามการทามอยส์เจอไรเซอร์ เพราะจะทำให้ผิวยิ่งสร้างน้ำมันเพิ่ม"
             ],
             color: "#f59e0b"
         },
         "Dry": {
-            title: "ผลการวิเคราะห์: ผิวแห้ง (Dry Skin)",
+            title: "ผลวิเคราะห์: ผิวแห้ง (Dry Skin)",
             advice: [
-                "<b>การดูแล:</b> เติมความชุ่มชื้นล้ำลึก เสริมเกราะป้องกันผิวเพื่อลดอาการลอกเป็นขุยหรือตึงผิว",
-                "<b>สกินแคร์ที่แนะนำ:</b> คลีนเซอร์เนื้อครีม/นม, มอยส์เจอไรเซอร์เนื้อ Cream เข้มข้น, ส่วนผสม Hyaluronic Acid, Ceramides หรือ Fatty Acids",
-                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงโฟมล้างหน้าที่มีสารโฟมแรงๆ (SLS/SLES) และน้ำอุ่นจัดในการล้างหน้า"
+                "<b>การดูแล:</b> เติมความชุ่มชื้นล้ำลึก เสริมเกราะป้องกันผิวเพื่อลดอาการลอกเป็นขุย",
+                "<b>สกินแคร์แนะนำ:</b> คลีนเซอร์เนื้อครีม/นม, มอยส์เจอไรเซอร์ Cream เข้มข้น, Hyaluronic Acid หรือ Ceramides",
+                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงโฟมที่มีสาร SLS/SLES และการล้างหน้าด้วยน้ำอุ่นจัด"
             ],
             color: "#3b82f6"
         }
@@ -98,71 +221,139 @@
     async function init() {
         if (isCameraActive) return;
 
+        const startBtn = document.getElementById("start-btn");
+        startBtn.disabled = true;
+        startBtn.innerText = "กำลังโหลด...";
+
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
-
-        document.getElementById("start-btn").disabled = true;
-        document.getElementById("start-btn").innerText = "กำลังโหลด...";
 
         model = await tmImage.load(modelURL, metadataURL);
         maxPredictions = model.getTotalClasses();
 
-        const flip = true; 
-        webcam = new tmImage.Webcam(300, 300, flip); 
+        webcam = new tmImage.Webcam(280, 280, true); 
         await webcam.setup(); 
         await webcam.play();
+        
+        isCameraActive = true;
+        isFrozen = false;
         window.requestAnimationFrame(loop);
 
         const container = document.getElementById("webcam-container");
-        container.innerHTML = ""; // ล้างข้อความและลบ Canvas เก่าทิ้ง ป้องกันภาพซ้อน
+        container.innerHTML = ""; 
         container.appendChild(webcam.canvas);
         
-        predictionList = document.getElementById("prediction-list");
-        predictionList.innerHTML = "";
-        for (let i = 0; i < maxPredictions; i++) {
-            const div = document.createElement("div");
-            div.className = "pred-box";
-            predictionList.appendChild(div);
-        }
-
-        isCameraActive = true;
-        document.getElementById("start-btn").innerText = "กล้องทำงานอยู่";
-        document.getElementById("scan-btn").disabled = false;
+        startBtn.style.display = "none";
+        document.getElementById("scan-btn").style.display = "block";
+        document.getElementById("face-status").style.display = "block";
     }
 
     async function loop() {
-        if (isCameraActive) {
+        if (isCameraActive && !isFrozen) {
             webcam.update();
+            checkFaceDistance();
             window.requestAnimationFrame(loop);
         }
     }
 
-    // ทำนายผลเฉพาะตอนที่ผู้ใช้งานกดปุ่มสแกนเท่านั้น
-    async function takeSnapshotAndPredict() {
-        if (!model || !webcam) return;
-        
-        const prediction = await model.predict(webcam.canvas);
-        
-        let highestProbability = 0;
-        let topClass = "";
+    // ฟังก์ชันประเมินความมั่นใจของโมเดลสดๆ เพื่อตรวจสอบระยะใบหน้า
+    async function checkFaceDistance() {
+        if (!model || !webcam.canvas) return;
 
+        const prediction = await model.predict(webcam.canvas);
+        let maxProb = 0;
         for (let i = 0; i < maxPredictions; i++) {
-            const prob = prediction[i].probability;
-            const percentage = (prob * 100).toFixed(1);
-            const className = prediction[i].className;
-            
-            predictionList.childNodes[i].innerHTML = `<span>${className}</span> <span>${percentage}%</span>`;
-            
-            if (prob > highestProbability) {
-                highestProbability = prob;
-                topClass = className;
+            if (prediction[i].probability > maxProb) {
+                maxProb = prediction[i].probability;
             }
         }
 
-        updateRecommendation(topClass, highestProbability);
+        const camWrapper = document.getElementById("cam-wrapper");
+        const statusDiv = document.getElementById("face-status");
+        const scanBtn = document.getElementById("scan-btn");
+
+        // หาก AI มั่นใจเกิน 70% แสดงว่าตำแหน่งและระยะหน้าได้ระดับที่เหมาะสมแล้ว
+        if (maxProb >= 0.70) {
+            isPositionGood = true;
+            camWrapper.className = "cam-wrapper border-ok";
+            statusDiv.className = "face-status status-ok";
+            statusDiv.innerHTML = "✅ ตำแหน่งใบหน้าเหมาะสมแล้ว พร้อมสแกน";
+            scanBtn.disabled = false;
+        } else {
+            isPositionGood = false;
+            camWrapper.className = "cam-wrapper border-warn";
+            statusDiv.className = "face-status status-warn";
+            statusDiv.innerHTML = "⚠️ ขยับหน้าให้เข้าใกล้ขึ้นเพื่อความแม่นยำ";
+            scanBtn.disabled = true;
+        }
     }
 
-    function updateRecommendation(className, probability) {
+    async function takeSnapshotAndPredict() {
+        if (!model || !webcam || isFrozen || !isPositionGood) return;
+
+        const scanLine = document.getElementById("scan-line");
+        scanLine.style.display = "block";
+        document.getElementById("scan-btn").disabled = true;
+
+        setTimeout(async () => {
+            isFrozen = true;
+            webcam.pause();
+            scanLine.style.display = "none";
+
+            const prediction = await model.predict(webcam.canvas);
+            
+            let highestProbability = 0;
+            let topClass = "";
+
+            const predContainer = document.getElementById("prediction-list");
+            predContainer.innerHTML = "";
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const prob = prediction[i].probability;
+                const percentage = (prob * 100).toFixed(1);
+                const className = prediction[i].className;
+                
+                const color = adviceData[className] ? adviceData[className].color : "#6366f1";
+
+                const predBox = document.createElement("div");
+                predBox.className = "pred-box";
+                predBox.innerHTML = `
+                    <div class="pred-info">
+                        <span>${className}</span>
+                        <span style="color: ${color}">${percentage}%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" style="width: ${percentage}%; background-color: ${color};"></div>
+                    </div>
+                `;
+                predContainer.appendChild(predBox);
+
+                if (prob > highestProbability) {
+                    highestProbability = prob;
+                    topClass = className;
+                }
+            }
+
+            updateRecommendation(topClass);
+            
+            document.getElementById("scan-btn").style.display = "none";
+            document.getElementById("rescan-btn").style.display = "block";
+        }, 800);
+    }
+
+    function resetCamera() {
+        isFrozen = false;
+        webcam.play();
+        window.requestAnimationFrame(loop);
+        
+        document.getElementById("recommendation-box").style.display = "none";
+        document.getElementById("prediction-list").innerHTML = "";
+        
+        document.getElementById("scan-btn").style.display = "block";
+        document.getElementById("rescan-btn").style.display = "none";
+    }
+
+    function updateRecommendation(className) {
         const recBox = document.getElementById("recommendation-box");
         const recTitle = document.getElementById("rec-title");
         const recContent = document.getElementById("rec-content");
