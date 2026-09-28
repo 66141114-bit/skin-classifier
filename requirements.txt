@@ -1,7 +1,7 @@
 flask
 flask-cors
 requests
-numpy
+numpy<2.0.0
 opencv-python-headless
-mediapipe
+mediapipe==0.10.14
 gunicorn
