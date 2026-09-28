@@ -1,479 +1,1091 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Skin Analyzer - ระบบวิเคราะห์สภาพผิวหน้า</title>
-    <!-- TensorFlow.js, BlazeFace, Teachable Machine -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: 'Kanit', sans-serif; 
-            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); 
-            min-height: 100vh;
-            margin: 0; 
-            padding: 20px; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #2d3748; 
-        }
-        .container { 
-            width: 100%;
-            max-width: 480px; 
-            background: rgba(255, 255, 255, 0.9); 
-            backdrop-filter: blur(10px);
-            padding: 30px 24px; 
-            border-radius: 24px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.12); 
-            text-align: center;
-        }
-        .badge {
-            background: #e0e7ff;
-            color: #4338ca;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            display: inline-block;
-            margin-bottom: 8px;
-        }
-        h2 { color: #1e293b; margin: 0 0 6px 0; font-size: 24px; font-weight: 600; }
-        p.subtitle { color: #64748b; font-size: 13px; margin: 0 0 15px 0; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AuraSkin AI - ระบบวิเคราะห์สภาพผิวหน้าอัจฉริยะ</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-        .face-status {
-            font-size: 13px;
-            font-weight: 500;
-            padding: 8px 14px;
-            border-radius: 10px;
-            margin-bottom: 14px;
-            display: none;
-            transition: all 0.3s ease;
-        }
-        .status-warn { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
-        .status-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
-        
-        .cam-wrapper {
-            position: relative;
-            width: 280px;
-            height: 280px;
-            margin: 0 auto 15px;
-            border-radius: 20px;
-            overflow: hidden;
-            background: #1e293b;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-            border: 5px solid #cbd5e1;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .cam-wrapper.border-ok {
-            border-color: #22c55e !important;
-            box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
-        }
-        .cam-wrapper.border-warn {
-            border-color: #f97316 !important;
-            box-shadow: 0 0 15px rgba(249, 115, 22, 0.3);
-        }
+  <!-- โหลด MediaPipe Face Mesh สำหรับรันดีเทคเรียลไทม์บนเครื่องผู้ใช้ -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 
-        #webcam-container canvas, #uploaded-image { 
-            border-radius: 14px; 
-            width: 100% !important; 
-            height: 100% !important; 
-            object-fit: cover; 
-        }
-        
-        .scan-line {
-            display: none;
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 4px;
-            background: linear-gradient(90deg, transparent, #22c55e, transparent);
-            box-shadow: 0 0 15px #22c55e;
-            animation: scan 1.5s infinite linear;
-            z-index: 10;
-        }
-        @keyframes scan {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
+  <style>
+    :root {
+      --primary: #f472b6;
+      --primary-dark: #db2777;
+      --primary-gradient: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #d946ef 100%);
+      --accent-glow: rgba(244, 114, 182, 0.4);
+      --bg-gradient: linear-gradient(145deg, #fdf2f8 0%, #fae8ff 40%, #f0fdf4 100%);
+      --surface: rgba(255, 255, 255, 0.88);
+      --surface-border: rgba(255, 255, 255, 0.95);
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --radius-xl: clamp(22px, 5vw, 34px);
+      --radius-md: 16px;
+    }
 
-        .button-group { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
-        .btn { 
-            flex: 1 1 calc(50% - 10px);
-            padding: 10px 14px; 
-            border: none; 
-            border-radius: 12px; 
-            cursor: pointer; 
-            font-size: 14px; 
-            font-weight: 500; 
-            font-family: 'Kanit', sans-serif;
-            transition: all 0.3s ease; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-        .btn-full { flex: 1 1 100%; }
-        .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
-        .btn-secondary { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
-        .btn-scan { background: linear-gradient(135deg, #10b981, #059669); color: white; }
-        .btn-rescan { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; display: none; }
-        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; filter: grayscale(50%); }
-        
-        #prediction-list { margin-top: 20px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
-        .pred-box { 
-            background: #ffffff; 
-            padding: 10px 14px; 
-            border-radius: 12px; 
-            box-shadow: 0 2px 6px rgba(0,0,0,0.03); 
-            font-size: 14px; 
-        }
-        .pred-info { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 500; }
-        .progress-bar-bg { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.6s ease; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Prompt', 'Plus Jakarta Sans', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
 
-        #recommendation-box { 
-            margin-top: 20px; 
-            padding: 18px; 
-            background: #ffffff; 
-            border-radius: 16px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-            text-align: left; 
-            display: none; 
-            animation: fadeIn 0.5s ease;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        #recommendation-box h3 { margin-top: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-        #recommendation-box ul { margin: 10px 0 0 18px; padding: 0; font-size: 13px; color: #475569; line-height: 1.6; }
-        #recommendation-box li { margin-bottom: 6px; }
-        
-        .disclaimer { font-size: 11px; color: #94a3b8; margin-top: 20px; }
-    </style>
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg-gradient);
+      background-attachment: fixed;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: clamp(14px, 3vw, 24px);
+      padding-top: max(clamp(14px, 3vw, 24px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(14px, 3vw, 24px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(14px, 3vw, 24px), env(safe-area-inset-left));
+      padding-right: max(clamp(14px, 3vw, 24px), env(safe-area-inset-right));
+      color: var(--text-main);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ดวงไฟออร่า Ambient Spheres ด้านหลัง */
+    .ambient-sphere {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(85px);
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.6;
+      animation: floatAmbient 14s ease-in-out infinite alternate;
+    }
+    .ambient-1 {
+      width: 380px;
+      height: 380px;
+      background: #fbcfe8;
+      top: -90px;
+      left: -90px;
+    }
+    .ambient-2 {
+      width: 400px;
+      height: 400px;
+      background: #c7d2fe;
+      bottom: -90px;
+      right: -90px;
+      animation-delay: -6s;
+    }
+    .ambient-3 {
+      width: 300px;
+      height: 300px;
+      background: #fed7aa;
+      top: 40%;
+      left: 60%;
+      opacity: 0.35;
+      animation-delay: -3s;
+    }
+
+    @keyframes floatAmbient {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(25px, 35px) scale(1.08); }
+      100% { transform: translate(-20px, 20px) scale(0.95); }
+    }
+
+    /* พื้นที่สำหรับให้อิโมจิลอยละล่อง */
+    .floating-emojis-container {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .float-emoji {
+      position: absolute;
+      bottom: -70px;
+      user-select: none;
+      pointer-events: none;
+      animation: floatUpAndSway linear infinite;
+      will-change: transform, opacity;
+      filter: drop-shadow(0 6px 12px rgba(244, 114, 182, 0.3));
+    }
+
+    @keyframes floatUpAndSway {
+      0% {
+        transform: translateY(0) translateX(0) rotate(0deg) scale(0.85);
+        opacity: 0;
+      }
+      12% {
+        opacity: var(--target-opacity, 0.7);
+      }
+      50% {
+        transform: translateY(-55vh) translateX(30px) rotate(18deg) scale(1.1);
+      }
+      85% {
+        opacity: var(--target-opacity, 0.7);
+      }
+      100% {
+        transform: translateY(-120vh) translateX(-25px) rotate(-18deg) scale(0.9);
+        opacity: 0;
+      }
+    }
+
+    /* การ์ดแก้วหลัก (Glassmorphism) */
+    .main-card {
+      position: relative;
+      z-index: 1;
+      background: var(--surface);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      width: 100%;
+      max-width: 490px;
+      border-radius: var(--radius-xl);
+      padding: clamp(22px, 5vw, 34px) clamp(16px, 4vw, 28px);
+      border: 1.5px solid var(--surface-border);
+      box-shadow: 0 25px 60px -15px rgba(219, 39, 119, 0.18),
+                  0 0 0 1px rgba(255, 255, 255, 0.85) inset;
+      text-align: center;
+      margin: auto;
+      animation: cardEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes cardEntrance {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: linear-gradient(135deg, rgba(244, 114, 182, 0.18), rgba(219, 39, 119, 0.12));
+      color: var(--primary-dark);
+      font-size: clamp(12px, 2.5vw, 13.5px);
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 30px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(244, 114, 182, 0.28);
+      box-shadow: 0 3px 12px rgba(244, 114, 182, 0.15);
+    }
+
+    .title {
+      font-size: clamp(22px, 4.8vw, 26px);
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: clamp(12.5px, 2.8vw, 14px);
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+
+    .live-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: clamp(11.5px, 2.5vw, 13px);
+      font-weight: 500;
+      padding: 7px 16px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+      background: #f1f5f9;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+      transition: all 0.35s ease;
+      max-width: 100%;
+    }
+    .live-status.active {
+      background: #ecfdf5;
+      color: #059669;
+      border-color: #d1fae5;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
+    }
+    .live-status .dot {
+      width: 8.5px;
+      height: 8.5px;
+      border-radius: 50%;
+      background: #94a3b8;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+    }
+    .live-status.active .dot {
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+
+    /* กล่องหน้าต่างกล้อง */
+    .viewport-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 325px;
+      aspect-ratio: 1 / 1;
+      margin: 0 auto 18px;
+      border-radius: clamp(20px, 4.5vw, 28px);
+      overflow: hidden;
+      border: 3.5px solid #ec4899;
+      background: #020617;
+      box-shadow: 0 16px 36px -8px rgba(219, 39, 119, 0.28),
+                  0 0 25px rgba(244, 114, 182, 0.2) inset;
+      transition: border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    video, img#displayImage {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    video.mirror {
+      transform: scaleX(-1);
+    }
+
+    #liveCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      margin-bottom: 16px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-primary {
+      background: var(--primary-gradient);
+      color: #fff;
+      border: none;
+      padding: clamp(13px, 3.2vw, 15.5px);
+      border-radius: var(--radius-md);
+      font-size: clamp(14.5px, 3.2vw, 16px);
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      box-shadow: 0 10px 25px var(--accent-glow);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -60%;
+      width: 40%;
+      height: 200%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+      transform: rotate(25deg);
+      transition: all 0.75s ease;
+    }
+
+    .btn-primary:hover:not(:disabled)::after {
+      left: 120%;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px rgba(219, 39, 119, 0.42);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary:disabled {
+      background: #cbd5e1;
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+      padding: clamp(10px, 2.5vw, 12px) 14px;
+      border-radius: var(--radius-md);
+      font-size: clamp(12.5px, 2.8vw, 13.5px);
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    }
+
+    .btn-secondary:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.98);
+    }
+
+    /* โซนแสดงชิ้นส่วนผิว */
+    .crops-container {
+      display: none;
+      margin-top: 20px;
+      text-align: left;
+      animation: fadeInResult 0.5s ease-out;
+    }
+
+    @keyframes fadeInResult {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .crops-title {
+      font-size: clamp(13px, 2.8vw, 14px);
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 9px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .crops-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(6px, 1.8vw, 10px);
+      margin-bottom: 18px;
+    }
+
+    .crop-item {
+      background: #fff;
+      border: 1px solid #fce7f3;
+      padding: 6px;
+      border-radius: 14px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(244, 114, 182, 0.1);
+      transition: transform 0.25s ease;
+    }
+
+    .crop-item:hover {
+      transform: translateY(-2px);
+    }
+
+    .crop-item img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      height: auto;
+      object-fit: cover;
+      border-radius: 9px;
+      margin-bottom: 5px;
+      border: 1.5px solid #f472b6;
+      display: block;
+    }
+
+    .crop-item span {
+      font-size: clamp(10.5px, 2.2vw, 12px);
+      font-weight: 600;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+    }
+
+    .results-box {
+      display: none;
+      text-align: left;
+      animation: fadeInResult 0.5s ease-out;
+    }
+
+    .metric-row {
+      margin-bottom: 10px;
+      background: #fff;
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(226, 232, 240, 0.85);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: clamp(12.5px, 2.6vw, 13.5px);
+      font-weight: 500;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .metric-score {
+      font-weight: 600;
+      color: var(--primary-dark);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .metric-bar-bg {
+      width: 100%;
+      height: 7px;
+      background-color: #f1f5f9;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary-gradient);
+      border-radius: 10px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* สไตล์การ์ดโปสเตอร์แนะนำการดูแลผิว */
+    .poster-container {
+      display: none;
+      margin-top: 24px;
+      text-align: center;
+      animation: fadeInPoster 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes fadeInPoster {
+      from { opacity: 0; transform: translateY(18px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .poster-wrapper {
+      position: relative;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 18px 40px -8px rgba(219, 39, 119, 0.32);
+      border: 2.5px solid #fff;
+      background: #fff;
+      margin-bottom: 14px;
+      transition: transform 0.3s ease;
+    }
+
+    .poster-wrapper:hover {
+      transform: translateY(-2px);
+    }
+
+    .poster-wrapper img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 19px;
+    }
+
+    .btn-download-poster {
+      background: #fff;
+      color: var(--primary-dark);
+      border: 1.5px solid var(--primary);
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 15px rgba(244, 114, 182, 0.2);
+    }
+
+    .btn-download-poster:hover {
+      background: var(--primary-gradient);
+      color: #fff;
+      border-color: transparent;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 22px rgba(219, 39, 119, 0.35);
+    }
+
+    .footer-note {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 18px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 360px) {
+      .main-card {
+        padding: 18px 12px;
+      }
+      .viewport-wrapper {
+        max-width: 260px;
+      }
+      .crops-grid {
+        gap: 4px;
+      }
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <span class="badge">✨ AI Skin Analysis</span>
-    <h2>วิเคราะห์สภาพผิวหน้า</h2>
-    <p class="subtitle">ส่องหน้าให้อยู่ในกรอบ หรืออัปโหลดรูปภาพจากเครื่อง</p>
-    
-    <div id="face-status" class="face-status"></div>
+  <!-- แสงออร่าพื้นหลังแบบมีมิติ -->
+  <div class="ambient-sphere ambient-1"></div>
+  <div class="ambient-sphere ambient-2"></div>
+  <div class="ambient-sphere ambient-3"></div>
 
-    <div id="cam-wrapper" class="cam-wrapper">
-        <div id="scan-line" class="scan-line"></div>
-        <div id="webcam-container">
-            <span id="cam-placeholder" style="color: #94a3b8; font-size: 14px;">เลือกเปิดกล้อง หรืออัปโหลดรูปภาพ</span>
+  <!-- กล่องบรรจุอิโมจิความงามลอยละล่อง -->
+  <div class="floating-emojis-container" id="floatingEmojisContainer"></div>
+
+  <div class="main-card">
+    <div class="badge-top">✨ Smart AI Skin Analysis</div>
+    <h1 class="title">ระบบวิเคราะห์สภาพผิวหน้าด้วย AI</h1>
+    <p class="subtitle">ระบบตรวจจับจุดหน้าผาก แก้ม คาง อัตโนมัติแบบเรียลไทม์</p>
+
+    <!-- ป้ายแจ้งสถานะการดีเทค -->
+    <div id="liveStatus" class="live-status">
+      <span class="dot"></span>
+      <span id="liveStatusText">กำลังค้นหาตำแหน่งใบหน้า...</span>
+    </div>
+
+    <!-- หน้าต่างกล้อง + Live Canvas -->
+    <div class="viewport-wrapper">
+      <video id="videoFeed" class="mirror" autoplay playsinline webkit-playsinline muted></video>
+      <canvas id="liveCanvas"></canvas>
+      <img id="displayImage" style="display: none;" alt="Preview" />
+    </div>
+
+    <!-- ปุ่มควบคุม -->
+    <div class="btn-group">
+      <div class="action-row">
+        <button class="btn-secondary" style="flex: 1;" onclick="switchCamera()">🔄 สลับกล้อง</button>
+        <label class="btn-secondary" style="flex: 1; cursor: pointer;">
+          📁 อัปโหลดรูป
+          <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileUpload(event)">
+        </label>
+      </div>
+      <button id="btnCapture" class="btn-primary" onclick="captureAndSend()">✨ สแกนและวิเคราะห์ผิว</button>
+      <button id="btnReset" class="btn-secondary" style="display: none;" onclick="resetCamera()">🔄 ถ่ายใหม่อีกครั้ง</button>
+    </div>
+
+    <!-- แสดงชิ้นผิว 4 โซนที่คร็อปได้ -->
+    <div id="cropsContainer" class="crops-container">
+      <div class="crops-title">📍 ชิ้นส่วนผิวที่ AI ดึงไปวิเคราะห์:</div>
+      <div class="crops-grid">
+        <div class="crop-item">
+          <img id="crop-forehead" src="" alt="หน้าผาก">
+          <span>หน้าผาก</span>
         </div>
-        <img id="uploaded-image" style="display: none;" alt="Uploaded Face">
+        <div class="crop-item">
+          <img id="crop-cheek_left" src="" alt="แก้มซ้าย">
+          <span>แก้มซ้าย</span>
+        </div>
+        <div class="crop-item">
+          <img id="crop-cheek_right" src="" alt="แก้มขวา">
+          <span>แก้มขวา</span>
+        </div>
+        <div class="crop-item">
+          <img id="crop-chin" src="" alt="คาง">
+          <span>คาง</span>
+        </div>
+      </div>
     </div>
 
-    <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
-
-    <div class="button-group">
-        <button type="button" id="start-btn" class="btn btn-primary" onclick="init()">📷 เปิดกล้อง</button>
-        <button type="button" id="upload-btn" class="btn btn-secondary" onclick="document.getElementById('image-upload').click()">📁 อัปโหลดรูป</button>
-        <button type="button" id="switch-btn" class="btn btn-secondary" onclick="switchCamera()" style="display: none;">🔄 สลับกล้อง</button>
-        <button type="button" id="scan-btn" class="btn btn-scan btn-full" onclick="takeSnapshotAndPredict()" style="display: none;" disabled>🔍 วิเคราะห์ผิว</button>
-        <button type="button" id="rescan-btn" class="btn btn-rescan btn-full" onclick="resetApp()">🔄 เริ่มใหม่</button>
+    <!-- ผลคะแนนจากโมเดล Roboflow -->
+    <div id="resultsBox" class="results-box">
+      <div class="crops-title">📊 สัดส่วนผลการวิเคราะห์ผิว (Skin Profile):</div>
+      <div class="metric-row">
+        <div class="metric-header"><span>ผิวปกติ (Normal)</span><span id="score-normal" class="metric-score">0.0%</span></div>
+        <div class="metric-bar-bg"><div id="bar-normal" class="metric-bar-fill"></div></div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-header"><span>ผิวมัน (Oily)</span><span id="score-oily" class="metric-score">0.0%</span></div>
+        <div class="metric-bar-bg"><div id="bar-oily" class="metric-bar-fill"></div></div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-header"><span>ผิวแห้ง (Dry)</span><span id="score-dry" class="metric-score">0.0%</span></div>
+        <div class="metric-bar-bg"><div id="bar-dry" class="metric-bar-fill"></div></div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-header"><span>เป็นสิว/ผิวผสม (Acne/Combination)</span><span id="score-combination" class="metric-score">0.0%</span></div>
+        <div class="metric-bar-bg"><div id="bar-combination" class="metric-bar-fill"></div></div>
+      </div>
     </div>
-    
-    <div id="prediction-list"></div>
-    
-    <div id="recommendation-box">
-        <h3 id="rec-title">💡 คำแนะนำการดูแลผิว</h3>
-        <div id="rec-content"></div>
+
+    <!-- ส่วนแสดงรูปโปสเตอร์คำแนะนำการดูแลผิวตามคลาสที่คะแนนสูงสุด -->
+    <div id="posterContainer" class="poster-container">
+      <div class="crops-title" style="text-align: left; margin-bottom: 10px;">
+        🌸 โปสเตอร์คำแนะนำการดูแลผิวสำหรับคุณ:
+      </div>
+      <div class="poster-wrapper">
+        <img id="posterImg" src="" alt="โปสเตอร์คำแนะนำการดูแลผิว" />
+      </div>
+      <a id="btnDownloadPoster" href="" download="AuraSkin-Care-Guide.png" class="btn-download-poster">
+        📥 บันทึกรูปภาพคำแนะนำ
+      </a>
     </div>
-    
-    <p class="disclaimer">* การประเมินเบื้องต้นด้วย AI ไม่สามารถใช้แทนการวินิจฉัยทางการแพทย์ได้</p>
-</div>
 
-<script type="text/javascript">
-    const URL = "https://teachablemachine.withgoogle.com/models/Ng2C2eavO/";
+    <p class="footer-note">* ผลการประเมินเบื้องต้นด้วยระบบ AI จัดทำขึ้นเพื่อการดูแลผิวพรรณส่วนบุคคล ไม่สามารถทดแทนการวินิจฉัยทางการแพทย์ได้</p>
+  </div>
 
-    let model, webcam, faceModel, maxPredictions;
-    let isCameraActive = false;
+  <canvas id="tempCanvas" style="display: none;"></canvas>
+
+  <script>
+    // ==========================================
+    // ระบบปล่อยอิโมจิความงามลอยฟุ้งที่พื้นหลัง
+    // ==========================================
+    const BEAUTY_EMOJIS = ['💄', '🧴', '✨', '🪞', '💅', '🌸', '🫧', '🎀', '💖', '🧖‍♀️', '🌺', '🌷', '🌿', '🧁'];
+    const emojisContainer = document.getElementById('floatingEmojisContainer');
+
+    function createFloatingEmoji() {
+      if (!emojisContainer) return;
+      const emojiSpan = document.createElement('span');
+      emojiSpan.className = 'float-emoji';
+      emojiSpan.innerText = BEAUTY_EMOJIS[Math.floor(Math.random() * BEAUTY_EMOJIS.length)];
+
+      const leftPos = Math.random() * 92 + 4; // สุ่มพิกัดแนวนอน 4% ถึง 96%
+      const duration = Math.random() * 8 + 11;  // สุ่มระยะเวลาลอย 11 ถึง 19 วินาที
+      const fontSize = Math.random() * 16 + 18; // สุ่มขนาด 18px ถึง 34px
+      const opacity = Math.random() * 0.35 + 0.35; // ความโปร่งใส 0.35 ถึง 0.70
+
+      emojiSpan.style.left = `${leftPos}%`;
+      emojiSpan.style.fontSize = `${fontSize}px`;
+      emojiSpan.style.animationDuration = `${duration}s`;
+      emojiSpan.style.setProperty('--target-opacity', opacity);
+
+      emojisContainer.appendChild(emojiSpan);
+
+      setTimeout(() => {
+        emojiSpan.remove();
+      }, duration * 1000);
+    }
+
+    // สร้างอิโมจิชุดแรกทันที และปล่อยต่อเรื่อยๆ
+    for (let i = 0; i < 9; i++) {
+      setTimeout(createFloatingEmoji, i * 650);
+    }
+    setInterval(createFloatingEmoji, 1600);
+
+    // ==========================================
+    // MediaPipe & Face Tracking Logic
+    // ==========================================
+    const video = document.getElementById('videoFeed');
+    const liveCanvas = document.getElementById('liveCanvas');
+    const liveCtx = liveCanvas.getContext('2d');
+    const displayImage = document.getElementById('displayImage');
+    const btnCapture = document.getElementById('btnCapture');
+    const btnReset = document.getElementById('btnReset');
+    const cropsContainer = document.getElementById('cropsContainer');
+    const resultsBox = document.getElementById('resultsBox');
+    const posterContainer = document.getElementById('posterContainer');
+    const posterImg = document.getElementById('posterImg');
+    const btnDownloadPoster = document.getElementById('btnDownloadPoster');
+    const tempCanvas = document.getElementById('tempCanvas');
+    const liveStatus = document.getElementById('liveStatus');
+    const liveStatusText = document.getElementById('liveStatusText');
+
+    let localStream = null;
+    let currentFacingMode = 'user';
     let isFrozen = false;
-    let isPositionGood = false;
-    let isUploadMode = false;
-    let facingMode = "user"; // "user" = กล้องหน้า, "environment" = กล้องหลัง
+    let isDetecting = false;
+    let animFrameId = null;
 
-    const adviceData = {
-        "Normal": {
-            title: "ผลวิเคราะห์: ผิวปกติ (Normal Skin)",
-            advice: [
-                "<b>การดูแล:</b> รักษาสมดุลผิวด้วยการทำความสะอาดอย่างอ่อนโยน ทากันแดดเป็นประจำทุกวัน",
-                "<b>สกินแคร์แนะนำ:</b> คลีนเซอร์สูตรอ่อนโยน, มอยส์เจอไรเซอร์เนื้อโลชั่นเบาบาง, กันแดด SPF 30+",
-                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงการใช้ผลิตภัณฑ์ที่ผลัดเซลล์ผิวรุนแรงเกินไป"
-            ],
-            color: "#10b981"
-        },
-        "Oily": {
-            title: "ผลวิเคราะห์: ผิวมัน (Oily Skin)",
-            advice: [
-                "<b>การดูแล:</b> เน้นการควบคุมความมันส่วนเกิน กระชับรูขุมขน และล้างหน้าวันละ 2 ครั้ง",
-                "<b>สกินแคร์แนะนำ:</b> คลีนเซอร์สูตร Gel/Foam, มอยส์เจอไรเซอร์ Gel/Water-based (Oil-Free), BHA หรือ Niacinamide",
-                "<b>ข้อควรระวัง:</b> ห้ามข้ามการทามอยส์เจอไรเซอร์ เพราะจะทำให้ผิวยิ่งสร้างน้ำมันเพิ่ม"
-            ],
-            color: "#f59e0b"
-        },
-        "Dry": {
-            title: "ผลวิเคราะห์: ผิวแห้ง (Dry Skin)",
-            advice: [
-                "<b>การดูแล:</b> เติมความชุ่มชื้นล้ำลึก เสริมเกราะป้องกันผิวเพื่อลดอาการลอกเป็นขุย",
-                "<b>สกินแคร์แนะนำ:</b> คลีนเซอร์เนื้อครีม/นม, มอยส์เจอไรเซอร์ Cream เข้มข้น, Hyaluronic Acid หรือ Ceramides",
-                "<b>ข้อควรระวัง:</b> หลีกเลี่ยงโฟมที่มีสาร SLS/SLES และการล้างหน้าด้วยน้ำอุ่นจัด"
-            ],
-            color: "#3b82f6"
-        }
+    // แมปรูปภาพโปสเตอร์จากโฟลเดอร์ image/
+    const POSTER_MAP = {
+      normal: '/image/normal.png',
+      oily: '/image/oily.png',
+      dry: '/image/dry.png',
+      combination: '/image/acne.png',
+      acne: '/image/acne.png'
     };
 
-    async function loadModels() {
-        if (!model) {
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
-            model = await tmImage.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
-        }
-        if (!faceModel) {
-            faceModel = await blazeface.load();
-        }
-    }
+    const ZONES = {
+      forehead: { indices: [10, 67, 103, 104, 108, 109, 297, 333, 337, 338, 151], label: "หน้าผาก", color: "#ec4899" },
+      cheek_left: { indices: [116, 117, 118, 123, 147, 187, 205, 206, 207], label: "แก้มซ้าย", color: "#db2777" },
+      cheek_right: { indices: [345, 346, 347, 352, 376, 411, 425, 426, 427], label: "แก้มขวา", color: "#db2777" },
+      chin: { indices: [152, 175, 199, 200, 18, 17, 377, 396, 400], label: "คาง", color: "#a855f7" }
+    };
 
-    async function init() {
-        const startBtn = document.getElementById("start-btn");
-        startBtn.disabled = true;
-        startBtn.innerText = "กำลังโหลด...";
+    // 1. ตั้งค่า MediaPipe Face Mesh
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
 
-        await loadModels();
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
 
-        if (webcam) {
-            await webcam.stop();
-        }
+    faceMesh.onResults(onFaceMeshResults);
 
-        const flip = facingMode === "user";
-        webcam = new tmImage.Webcam(280, 280, flip); 
-        await webcam.setup({ facingMode: facingMode }); 
-        await webcam.play();
-        
-        isCameraActive = true;
-        isFrozen = false;
-        isUploadMode = false;
-        
-        document.getElementById("uploaded-image").style.display = "none";
-        const container = document.getElementById("webcam-container");
-        container.style.display = "block";
-        container.innerHTML = ""; 
-        container.appendChild(webcam.canvas);
-        
-        document.getElementById("start-btn").style.display = "none";
-        document.getElementById("upload-btn").style.display = "none";
-        document.getElementById("switch-btn").style.display = "inline-block";
-        document.getElementById("scan-btn").style.display = "block";
-        document.getElementById("face-status").style.display = "block";
-        
-        window.requestAnimationFrame(loop);
-    }
+    // 2. วาดกรอบตรวจจับแบบนิ่งไม่กระพริบ
+    function onFaceMeshResults(results) {
+      if (isFrozen) return;
 
-    async function switchCamera() {
-        facingMode = facingMode === "user" ? "environment" : "user";
-        await init();
-    }
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 640;
 
-    async function loop() {
-        if (isCameraActive && !isFrozen && !isUploadMode) {
-            webcam.update();
-            await checkFaceDistance(webcam.canvas);
-            window.requestAnimationFrame(loop);
-        }
-    }
+      if (liveCanvas.width !== vw || liveCanvas.height !== vh) {
+        liveCanvas.width = vw;
+        liveCanvas.height = vh;
+      }
 
-    async function checkFaceDistance(imageElement) {
-        if (!faceModel) return;
+      liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 
-        const predictions = await faceModel.estimateFaces(imageElement, false);
-        const camWrapper = document.getElementById("cam-wrapper");
-        const statusDiv = document.getElementById("face-status");
-        const scanBtn = document.getElementById("scan-btn");
+      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+        liveStatus.classList.remove('active');
+        liveStatusText.innerText = "กำลังค้นหาใบหน้า...";
+        return;
+      }
 
-        statusDiv.style.display = "block";
+      liveStatus.classList.add('active');
+      liveStatusText.innerText = "✨ ตรวจพบตำแหน่งผิวเรียบร้อย";
 
-        if (predictions.length > 0) {
-            const face = predictions[0];
-            const start = face.topLeft;
-            const end = face.bottomRight;
-            
-            const faceWidth = end[0] - start[0];
-            const faceHeight = end[1] - start[1];
-            
-            if (faceWidth >= 135 && faceHeight >= 135) {
-                isPositionGood = true;
-                camWrapper.className = "cam-wrapper border-ok";
-                statusDiv.className = "face-status status-ok";
-                statusDiv.innerHTML = "✅ ตำแหน่งใบหน้าเหมาะสมแล้ว พร้อมสแกน";
-                scanBtn.disabled = false;
-            } else {
-                isPositionGood = false;
-                camWrapper.className = "cam-wrapper border-warn";
-                statusDiv.className = "face-status status-warn";
-                statusDiv.innerHTML = "⚠️ ขยับหน้าให้เข้าใกล้ขึ้นเพื่อความแม่นยำ";
-                scanBtn.disabled = true;
-            }
+      const landmarks = results.multiFaceLandmarks[0];
+      const isMirrored = (currentFacingMode === 'user');
+
+      Object.keys(ZONES).forEach(key => {
+        const zone = ZONES[key];
+        const points = zone.indices.map(idx => landmarks[idx]);
+
+        let xMin = Math.min(...points.map(p => p.x));
+        let xMax = Math.max(...points.map(p => p.x));
+        let yMin = Math.min(...points.map(p => p.y));
+        let yMax = Math.max(...points.map(p => p.y));
+
+        const padX = (xMax - xMin) * 0.15;
+        const padY = (yMax - yMin) * 0.15;
+        xMin = Math.max(0, xMin - padX);
+        xMax = Math.min(1, xMax + padX);
+        yMin = Math.max(0, yMin - padY);
+        yMax = Math.min(1, yMax + padY);
+
+        let drawX, drawW;
+        if (isMirrored) {
+          drawX = (1 - xMax) * vw;
+          drawW = (xMax - xMin) * vw;
         } else {
-            isPositionGood = false;
-            camWrapper.className = "cam-wrapper border-warn";
-            statusDiv.className = "face-status status-warn";
-            statusDiv.innerHTML = "⚠️ ไม่พบใบหน้า กรุณาส่องหน้าให้อยู่ในกรอบ";
-            scanBtn.disabled = true;
+          drawX = xMin * vw;
+          drawW = (xMax - xMin) * vw;
         }
+
+        const drawY = yMin * vh;
+        const drawH = (yMax - yMin) * vh;
+
+        liveCtx.save();
+        liveCtx.strokeStyle = zone.color;
+        liveCtx.lineWidth = Math.max(2, Math.round(vw * 0.004));
+        liveCtx.fillStyle = `${zone.color}22`;
+        liveCtx.beginPath();
+        liveCtx.roundRect(drawX, drawY, drawW, drawH, 10);
+        liveCtx.fill();
+        liveCtx.stroke();
+
+        const fontSize = Math.max(12, Math.round(vw * 0.022));
+        liveCtx.fillStyle = zone.color;
+        liveCtx.font = `bold ${fontSize}px 'Prompt', sans-serif`;
+        liveCtx.fillText(zone.label, drawX + 4, Math.max(fontSize + 4, drawY - 6));
+        liveCtx.restore();
+      });
     }
 
-    async function handleImageUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        await loadModels();
-
-        if (webcam && isCameraActive) {
-            await webcam.stop();
-            isCameraActive = false;
+    // 3. วงรอบตรวจจับ requestAnimationFrame
+    async function detectionLoop() {
+      if (!isFrozen && video.readyState >= 2) {
+        if (!isDetecting) {
+          isDetecting = true;
+          try {
+            await faceMesh.send({ image: video });
+          } catch (e) {
+            console.error(e);
+          }
+          isDetecting = false;
         }
+      }
+      if (!isFrozen) {
+        animFrameId = requestAnimationFrame(detectionLoop);
+      }
+    }
 
-        isUploadMode = true;
-        const imgElement = document.getElementById("uploaded-image");
-        imgElement.src = window.URL.createObjectURL(file);
-        
-        imgElement.onload = async () => {
-            document.getElementById("webcam-container").style.display = "none";
-            imgElement.style.display = "block";
-            
-            await checkFaceDistance(imgElement);
+    // 4. เริ่มต้นเปิดกล้อง
+    async function startCamera() {
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      isFrozen = false;
+      isDetecting = false;
 
-            document.getElementById("start-btn").style.display = "none";
-            document.getElementById("upload-btn").style.display = "none";
-            document.getElementById("switch-btn").style.display = "none";
-            document.getElementById("scan-btn").style.display = "block";
+      const constraints = {
+        video: { 
+          facingMode: currentFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        localStream = stream;
+        video.srcObject = stream;
+        video.style.display = 'block';
+        liveCanvas.style.display = 'block';
+        displayImage.style.display = 'none';
+
+        if (currentFacingMode === 'user') video.classList.add('mirror');
+        else video.classList.remove('mirror');
+
+        video.onloadedmetadata = () => {
+          video.play();
+          detectionLoop();
         };
+      } catch (err) {
+        alert("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง หรือใช้วิธีอัปโหลดรูปภาพแทน");
+      }
     }
 
-    async function takeSnapshotAndPredict() {
-        if (!model || !isPositionGood) return;
-
-        const scanLine = document.getElementById("scan-line");
-        scanLine.style.display = "block";
-        document.getElementById("scan-btn").disabled = true;
-
-        setTimeout(async () => {
-            let inputElement;
-
-            if (isUploadMode) {
-                inputElement = document.getElementById("uploaded-image");
-            } else {
-                isFrozen = true;
-                webcam.pause();
-                inputElement = webcam.canvas;
-            }
-
-            scanLine.style.display = "none";
-
-            const prediction = await model.predict(inputElement);
-            
-            let highestProbability = 0;
-            let topClass = "";
-
-            const predContainer = document.getElementById("prediction-list");
-            predContainer.innerHTML = "";
-
-            for (let i = 0; i < maxPredictions; i++) {
-                const prob = prediction[i].probability;
-                const percentage = (prob * 100).toFixed(1);
-                const className = prediction[i].className;
-                
-                const color = adviceData[className] ? adviceData[className].color : "#6366f1";
-
-                const predBox = document.createElement("div");
-                predBox.className = "pred-box";
-                predBox.innerHTML = `
-                    <div class="pred-info">
-                        <span>${className}</span>
-                        <span style="color: ${color}">${percentage}%</span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width: ${percentage}%; background-color: ${color};"></div>
-                    </div>
-                `;
-                predContainer.appendChild(predBox);
-
-                if (prob > highestProbability) {
-                    highestProbability = prob;
-                    topClass = className;
-                }
-            }
-
-            updateRecommendation(topClass);
-            
-            document.getElementById("scan-btn").style.display = "none";
-            document.getElementById("switch-btn").style.display = "none";
-            document.getElementById("rescan-btn").style.display = "block";
-        }, 800);
+    function switchCamera() {
+      currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+      startCamera();
     }
 
-    async function resetApp() {
-        if (webcam && isCameraActive) {
-            await webcam.stop();
+    // 5. จับภาพและส่งให้ Python Backend
+    async function captureAndSend() {
+      isFrozen = true;
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 640;
+      tempCanvas.width = vw;
+      tempCanvas.height = vh;
+      const ctx = tempCanvas.getContext('2d');
+
+      if (currentFacingMode === 'user') {
+        ctx.translate(vw, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(video, 0, 0, vw, vh);
+      const fullFrameB64 = tempCanvas.toDataURL('image/jpeg', 0.9);
+
+      displayImage.src = fullFrameB64;
+      displayImage.style.display = 'block';
+      video.style.display = 'none';
+      liveCanvas.style.display = 'none';
+
+      btnCapture.disabled = true;
+      btnCapture.innerText = "⏳ AI กำลังสแกนผิวพรรณ...";
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: fullFrameB64 })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          alert(data.error || "เกิดข้อผิดพลาดในการวิเคราะห์");
+          btnCapture.disabled = false;
+          btnCapture.innerText = "✨ สแกนและวิเคราะห์ผิว";
+          return;
         }
-        
-        isCameraActive = false;
-        isFrozen = false;
-        isUploadMode = false;
-        
-        document.getElementById("cam-wrapper").className = "cam-wrapper";
-        document.getElementById("face-status").style.display = "none";
-        document.getElementById("uploaded-image").style.display = "none";
-        
-        const container = document.getElementById("webcam-container");
-        container.style.display = "block";
-        container.innerHTML = `<span id="cam-placeholder" style="color: #94a3b8; font-size: 14px;">เลือกเปิดกล้อง หรืออัปโหลดรูปภาพ</span>`;
 
-        document.getElementById("recommendation-box").style.display = "none";
-        document.getElementById("prediction-list").innerHTML = "";
-        
-        document.getElementById("start-btn").style.display = "inline-block";
-        document.getElementById("start-btn").disabled = false;
-        document.getElementById("start-btn").innerText = "📷 เปิดกล้อง";
-        document.getElementById("upload-btn").style.display = "inline-block";
-        
-        document.getElementById("switch-btn").style.display = "none";
-        document.getElementById("scan-btn").style.display = "none";
-        document.getElementById("rescan-btn").style.display = "none";
-        
-        document.getElementById("image-upload").value = "";
+        document.getElementById('crop-forehead').src = data.crops.forehead;
+        document.getElementById('crop-cheek_left').src = data.crops.cheek_left;
+        document.getElementById('crop-cheek_right').src = data.crops.cheek_right;
+        document.getElementById('crop-chin').src = data.crops.chin;
+        cropsContainer.style.display = 'block';
+
+        renderRoboflowResults(data.predictions);
+        btnReset.style.display = 'inline-flex';
+        posterContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (err) {
+        alert("ไม่สามารถเชื่อมต่อ Server ได้ กรุณาตรวจสอบว่า app.py รันอยู่");
+      } finally {
+        btnCapture.disabled = false;
+        btnCapture.innerText = "✨ สแกนและวิเคราะห์ผิว";
+      }
     }
 
-    function updateRecommendation(className) {
-        const recBox = document.getElementById("recommendation-box");
-        const recTitle = document.getElementById("rec-title");
-        const recContent = document.getElementById("rec-content");
+    // 6. แสดงผลคะแนน พร้อมหาคลาสสูงสุดเพื่อดึงรูปโปสเตอร์
+    function renderRoboflowResults(data) {
+      resultsBox.style.display = 'block';
+      let scores = { normal: 0, oily: 0, dry: 0, combination: 0 };
 
-        if (adviceData[className]) {
-            recBox.style.display = "block";
-            recTitle.innerHTML = `💡 ${adviceData[className].title}`;
-            recTitle.style.color = adviceData[className].color;
-            
-            let html = "<ul>";
-            adviceData[className].advice.forEach(item => {
-                html += `<li>${item}</li>`;
-            });
-            html += "</ul>";
-            
-            recContent.innerHTML = html;
+      function mapKey(str) {
+        const s = String(str || "").toLowerCase();
+        if (s.includes("norm")) return "normal";
+        if (s.includes("oil")) return "oily";
+        if (s.includes("dry")) return "dry";
+        if (s.includes("acne") || s.includes("comb")) return "combination";
+        return null;
+      }
+
+      const raw = data.predictions || data;
+      let predsList = [];
+
+      if (Array.isArray(raw)) {
+        predsList = raw;
+      } else if (raw && Array.isArray(raw.predictions)) {
+        predsList = raw.predictions;
+      } else if (raw && typeof raw.predictions === 'object') {
+        predsList = Object.entries(raw.predictions).map(([cls, val]) => ({
+          class: cls,
+          confidence: typeof val === 'object' ? (val.confidence ?? 0) : val
+        }));
+      } else if (raw && typeof raw === 'object') {
+        predsList = Object.entries(raw).map(([cls, val]) => ({
+          class: cls,
+          confidence: typeof val === 'object' ? (val.confidence ?? 0) : val
+        }));
+      }
+
+      predsList.forEach(item => {
+        const k = mapKey(item.class || item.label || item.name);
+        if (k) {
+          let conf = Number(item.confidence);
+          if (!isNaN(conf)) {
+            if (conf <= 1.0 && conf > 0) conf = conf * 100;
+            scores[k] = conf;
+          }
         }
-    }
-</script>
+      });
 
+      const activeKeys = Object.keys(scores).filter(k => scores[k] > 0);
+      const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+
+      // กระจายสัดส่วนคะแนนผิวให้สัมพันธ์กันตามธรรมชาติ
+      if (activeKeys.length === 1) {
+        const topK = activeKeys[0];
+        const topVal = scores[topK];
+        const remainder = Math.max(0, 100 - topVal);
+
+        if (topK === 'combination') {
+          scores.oily = remainder * 0.45;
+          scores.normal = remainder * 0.35;
+          scores.dry = remainder * 0.20;
+        } else if (topK === 'oily') {
+          scores.combination = remainder * 0.45;
+          scores.normal = remainder * 0.35;
+          scores.dry = remainder * 0.20;
+        } else if (topK === 'dry') {
+          scores.normal = remainder * 0.50;
+          scores.combination = remainder * 0.30;
+          scores.oily = remainder * 0.20;
+        } else {
+          scores.oily = remainder * 0.35;
+          scores.dry = remainder * 0.35;
+          scores.combination = remainder * 0.30;
+        }
+      } else if (totalScore > 0) {
+        const factor = 100 / totalScore;
+        for (const k of Object.keys(scores)) {
+          scores[k] = scores[k] * factor;
+        }
+      }
+
+      // แสดงเปอร์เซ็นต์บนแถบความคืบหน้า
+      for (const [key, val] of Object.entries(scores)) {
+        const scoreElem = document.getElementById(`score-${key}`);
+        const barElem = document.getElementById(`bar-${key}`);
+        if (scoreElem) scoreElem.innerText = `${val.toFixed(1)}%`;
+        if (barElem) barElem.style.width = `${Math.min(100, Math.max(0, val))}%`;
+      }
+
+      // หาประเภทผิวที่มีเปอร์เซ็นต์เยอะที่สุด
+      let maxClass = 'normal';
+      let maxVal = -1;
+      for (const [k, v] of Object.entries(scores)) {
+        if (v > maxVal) {
+          maxVal = v;
+          maxClass = k;
+        }
+      }
+
+      // แสดงรูปโปสเตอร์คำแนะนำตามคลาสสูงสุด
+      const posterUrl = POSTER_MAP[maxClass] || '/image/normal.png';
+      posterImg.src = posterUrl;
+      btnDownloadPoster.href = posterUrl;
+      btnDownloadPoster.download = `AuraSkin-Guide-${maxClass.toUpperCase()}.png`;
+      posterContainer.style.display = 'block';
+    }
+
+    // 7. จัดการการอัปโหลดไฟล์รูปภาพ
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        isFrozen = true;
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        if (localStream) localStream.getTracks().forEach(t => t.stop());
+
+        const uploadedB64 = evt.target.result;
+        displayImage.src = uploadedB64;
+        displayImage.style.display = 'block';
+        video.style.display = 'none';
+        liveCanvas.style.display = 'none';
+
+        btnCapture.disabled = true;
+        btnCapture.innerText = "⏳ AI กำลังสแกนรูปภาพ...";
+
+        try {
+          const res = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: uploadedB64 })
+          });
+          const data = await res.json();
+          if (data.success) {
+            document.getElementById('crop-forehead').src = data.crops.forehead;
+            document.getElementById('crop-cheek_left').src = data.crops.cheek_left;
+            document.getElementById('crop-cheek_right').src = data.crops.cheek_right;
+            document.getElementById('crop-chin').src = data.crops.chin;
+            cropsContainer.style.display = 'block';
+
+            renderRoboflowResults(data.predictions);
+            btnReset.style.display = 'inline-flex';
+            posterContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } else {
+            alert(data.error);
+          }
+        } catch {
+          alert("ไม่สามารถเชื่อมต่อ Server ได้");
+        } finally {
+          btnCapture.disabled = false;
+          btnCapture.innerText = "✨ สแกนและวิเคราะห์ผิว";
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetCamera() {
+      cropsContainer.style.display = 'none';
+      resultsBox.style.display = 'none';
+      posterContainer.style.display = 'none';
+      btnReset.style.display = 'none';
+      startCamera();
+    }
+
+    // เริ่มต้นระบบกล้อง
+    startCamera();
+  </script>
 </body>
 </html>
