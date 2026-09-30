@@ -19,7 +19,7 @@
       --primary-gradient: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #d946ef 100%);
       --accent-glow: rgba(244, 114, 182, 0.4);
       --bg-gradient: linear-gradient(145deg, #fdf2f8 0%, #fae8ff 40%, #f0fdf4 100%);
-      --surface: rgba(255, 255, 255, 0.88);
+      --surface: rgba(255, 255, 255, 0.92);
       --surface-border: rgba(255, 255, 255, 0.95);
       --text-main: #1e293b;
       --text-muted: #64748b;
@@ -54,7 +54,7 @@
       position: relative;
     }
 
-    /* ดวงไฟออร่า Ambient Spheres ด้านหลัง */
+    /* แสงออร่าตกแต่งพื้นหลัง */
     .ambient-sphere {
       position: fixed;
       border-radius: 50%;
@@ -95,7 +95,6 @@
       100% { transform: translate(-20px, 20px) scale(0.95); }
     }
 
-    /* พื้นที่สำหรับให้อิโมจิลอยละล่อง */
     .floating-emojis-container {
       position: fixed;
       inset: 0;
@@ -142,7 +141,7 @@
       backdrop-filter: blur(28px);
       -webkit-backdrop-filter: blur(28px);
       width: 100%;
-      max-width: 490px;
+      max-width: 500px;
       border-radius: var(--radius-xl);
       padding: clamp(22px, 5vw, 34px) clamp(16px, 4vw, 28px);
       border: 1.5px solid var(--surface-border);
@@ -351,6 +350,59 @@
       transform: scale(0.98);
     }
 
+    /* การ์ดสรุปสภาพผิวภาพรวม (Overall Summary Box) */
+    .overall-card {
+      display: none;
+      margin-top: 20px;
+      background: linear-gradient(135deg, #fff1f2 0%, #fdf2f8 50%, #faf5ff 100%);
+      border: 1.5px solid #fbcfe8;
+      border-radius: 20px;
+      padding: 16px 18px;
+      text-align: left;
+      box-shadow: 0 10px 24px -6px rgba(219, 39, 119, 0.15);
+      animation: fadeInResult 0.5s ease-out;
+    }
+
+    .overall-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .overall-badge {
+      background: var(--primary-dark);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    .overall-title {
+      font-size: clamp(16px, 3.8vw, 19px);
+      font-weight: 700;
+      color: #831843;
+    }
+
+    .overall-desc {
+      font-size: clamp(12.5px, 2.7vw, 13.5px);
+      color: #475569;
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
+
+    .overall-rec {
+      font-size: clamp(12px, 2.6vw, 13px);
+      background: rgba(255, 255, 255, 0.85);
+      border-left: 3.5px solid #db2777;
+      padding: 8px 12px;
+      border-radius: 0 10px 10px 0;
+      color: #334155;
+      line-height: 1.4;
+    }
+
     /* โซนแสดงชิ้นส่วนผิว */
     .crops-container {
       display: none;
@@ -384,7 +436,7 @@
     .crop-item {
       background: #fff;
       border: 1px solid #fce7f3;
-      padding: 6px;
+      padding: 6px 4px 8px;
       border-radius: 14px;
       text-align: center;
       box-shadow: 0 4px 12px rgba(244, 114, 182, 0.1);
@@ -406,14 +458,26 @@
       display: block;
     }
 
-    .crop-item span {
+    .crop-item .crop-label {
       font-size: clamp(10.5px, 2.2vw, 12px);
       font-weight: 600;
-      color: #64748b;
+      color: #475569;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .crop-item .crop-status {
+      font-size: clamp(9.5px, 2vw, 11px);
+      font-weight: 600;
+      color: var(--primary-dark);
+      background: #fdf2f8;
+      padding: 2px 4px;
+      border-radius: 6px;
+      display: inline-block;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: block;
+      max-width: 100%;
     }
 
     .results-box {
@@ -462,7 +526,7 @@
       transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    /* สไตล์การ์ดโปสเตอร์แนะนำการดูแลผิว */
+    /* โปสเตอร์คำแนะนำ */
     .poster-container {
       display: none;
       margin-top: 24px;
@@ -584,30 +648,44 @@
       <button id="btnReset" class="btn-secondary" style="display: none;" onclick="resetCamera()">🔄 ถ่ายใหม่อีกครั้ง</button>
     </div>
 
-    <!-- แสดงชิ้นผิว 4 โซนที่คร็อปได้ -->
+    <!-- 1. การ์ดสรุปสภาพผิวภาพรวม (Overall Skin Analysis Card) -->
+    <div id="overallCard" class="overall-card">
+      <div class="overall-header">
+        <span class="overall-badge">RESULT</span>
+        <h3 id="overallType" class="overall-title">กำลังประมวลผล...</h3>
+      </div>
+      <p id="overallDesc" class="overall-desc"></p>
+      <div id="overallRec" class="overall-rec"></div>
+    </div>
+
+    <!-- 2. แสดงชิ้นผิว 4 โซนที่คร็อปได้ พร้อมผลรายจุด -->
     <div id="cropsContainer" class="crops-container">
-      <div class="crops-title">📍 ชิ้นส่วนผิวที่ AI ดึงไปวิเคราะห์:</div>
+      <div class="crops-title">📍 ผลวิเคราะห์แยกรายจุด (Zone Breakdown):</div>
       <div class="crops-grid">
         <div class="crop-item">
           <img id="crop-forehead" src="" alt="หน้าผาก">
-          <span>หน้าผาก</span>
+          <span class="crop-label">หน้าผาก</span>
+          <span id="zone-tag-forehead" class="crop-status">-</span>
         </div>
         <div class="crop-item">
           <img id="crop-cheek_left" src="" alt="แก้มซ้าย">
-          <span>แก้มซ้าย</span>
+          <span class="crop-label">แก้มซ้าย</span>
+          <span id="zone-tag-cheek_left" class="crop-status">-</span>
         </div>
         <div class="crop-item">
           <img id="crop-cheek_right" src="" alt="แก้มขวา">
-          <span>แก้มขวา</span>
+          <span class="crop-label">แก้มขวา</span>
+          <span id="zone-tag-cheek_right" class="crop-status">-</span>
         </div>
         <div class="crop-item">
           <img id="crop-chin" src="" alt="คาง">
-          <span>คาง</span>
+          <span class="crop-label">คาง</span>
+          <span id="zone-tag-chin" class="crop-status">-</span>
         </div>
       </div>
     </div>
 
-    <!-- ผลคะแนนจากโมเดล Roboflow -->
+    <!-- 3. ผลคะแนนสัดส่วนเฉลี่ยรวมทั้งใบหน้า -->
     <div id="resultsBox" class="results-box">
       <div class="crops-title">📊 สัดส่วนผลการวิเคราะห์ผิว (Skin Profile):</div>
       <div class="metric-row">
@@ -628,7 +706,7 @@
       </div>
     </div>
 
-    <!-- ส่วนแสดงรูปโปสเตอร์คำแนะนำการดูแลผิวตามคลาสที่คะแนนสูงสุด -->
+    <!-- 4. ส่วนแสดงรูปโปสเตอร์คำแนะนำการดูแลผิว -->
     <div id="posterContainer" class="poster-container">
       <div class="crops-title" style="text-align: left; margin-bottom: 10px;">
         🌸 โปสเตอร์คำแนะนำการดูแลผิวสำหรับคุณ:
@@ -659,10 +737,10 @@
       emojiSpan.className = 'float-emoji';
       emojiSpan.innerText = BEAUTY_EMOJIS[Math.floor(Math.random() * BEAUTY_EMOJIS.length)];
 
-      const leftPos = Math.random() * 92 + 4; // สุ่มพิกัดแนวนอน 4% ถึง 96%
-      const duration = Math.random() * 8 + 11;  // สุ่มระยะเวลาลอย 11 ถึง 19 วินาที
-      const fontSize = Math.random() * 16 + 18; // สุ่มขนาด 18px ถึง 34px
-      const opacity = Math.random() * 0.35 + 0.35; // ความโปร่งใส 0.35 ถึง 0.70
+      const leftPos = Math.random() * 92 + 4;
+      const duration = Math.random() * 8 + 11;
+      const fontSize = Math.random() * 16 + 18;
+      const opacity = Math.random() * 0.35 + 0.35;
 
       emojiSpan.style.left = `${leftPos}%`;
       emojiSpan.style.fontSize = `${fontSize}px`;
@@ -676,7 +754,6 @@
       }, duration * 1000);
     }
 
-    // สร้างอิโมจิชุดแรกทันที และปล่อยต่อเรื่อยๆ
     for (let i = 0; i < 9; i++) {
       setTimeout(createFloatingEmoji, i * 650);
     }
@@ -691,6 +768,7 @@
     const displayImage = document.getElementById('displayImage');
     const btnCapture = document.getElementById('btnCapture');
     const btnReset = document.getElementById('btnReset');
+    const overallCard = document.getElementById('overallCard');
     const cropsContainer = document.getElementById('cropsContainer');
     const resultsBox = document.getElementById('resultsBox');
     const posterContainer = document.getElementById('posterContainer');
@@ -736,7 +814,7 @@
 
     faceMesh.onResults(onFaceMeshResults);
 
-    // 2. วาดกรอบตรวจจับแบบนิ่งไม่กระพริบ
+    // 2. วาดกรอบตรวจจับแบบ Real-time
     function onFaceMeshResults(results) {
       if (isFrozen) return;
 
@@ -890,7 +968,7 @@
       liveCanvas.style.display = 'none';
 
       btnCapture.disabled = true;
-      btnCapture.innerText = "⏳ AI กำลังสแกนผิวพรรณ...";
+      btnCapture.innerText = "⏳ AI กำลังสแกนผิวพรรณ 4 จุด...";
 
       try {
         const res = await fetch('/api/analyze', {
@@ -907,15 +985,9 @@
           return;
         }
 
-        document.getElementById('crop-forehead').src = data.crops.forehead;
-        document.getElementById('crop-cheek_left').src = data.crops.cheek_left;
-        document.getElementById('crop-cheek_right').src = data.crops.cheek_right;
-        document.getElementById('crop-chin').src = data.crops.chin;
-        cropsContainer.style.display = 'block';
-
-        renderRoboflowResults(data.predictions);
+        renderAnalysisData(data);
         btnReset.style.display = 'inline-flex';
-        posterContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        overallCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (err) {
         alert("ไม่สามารถเชื่อมต่อ Server ได้ กรุณาตรวจสอบว่า app.py รันอยู่");
       } finally {
@@ -924,107 +996,58 @@
       }
     }
 
-    // 6. แสดงผลคะแนน พร้อมหาคลาสสูงสุดเพื่อดึงรูปโปสเตอร์
-    function renderRoboflowResults(data) {
-      resultsBox.style.display = 'block';
-      let scores = { normal: 0, oily: 0, dry: 0, combination: 0 };
-
-      function mapKey(str) {
-        const s = String(str || "").toLowerCase();
-        if (s.includes("norm")) return "normal";
-        if (s.includes("oil")) return "oily";
-        if (s.includes("dry")) return "dry";
-        if (s.includes("acne") || s.includes("comb")) return "combination";
-        return null;
+    // 6. นำข้อมูลจาก Backend มาแสดงผลครบทั้งระบบ
+    function renderAnalysisData(data) {
+      // 6.1 แสดงภาพตัดชิ้นผิว 4 โซน
+      if (data.crops) {
+        document.getElementById('crop-forehead').src = data.crops.forehead || '';
+        document.getElementById('crop-cheek_left').src = data.crops.cheek_left || '';
+        document.getElementById('crop-cheek_right').src = data.crops.cheek_right || '';
+        document.getElementById('crop-chin').src = data.crops.chin || '';
+        cropsContainer.style.display = 'block';
       }
 
-      const raw = data.predictions || data;
-      let predsList = [];
-
-      if (Array.isArray(raw)) {
-        predsList = raw;
-      } else if (raw && Array.isArray(raw.predictions)) {
-        predsList = raw.predictions;
-      } else if (raw && typeof raw.predictions === 'object') {
-        predsList = Object.entries(raw.predictions).map(([cls, val]) => ({
-          class: cls,
-          confidence: typeof val === 'object' ? (val.confidence ?? 0) : val
-        }));
-      } else if (raw && typeof raw === 'object') {
-        predsList = Object.entries(raw).map(([cls, val]) => ({
-          class: cls,
-          confidence: typeof val === 'object' ? (val.confidence ?? 0) : val
-        }));
-      }
-
-      predsList.forEach(item => {
-        const k = mapKey(item.class || item.label || item.name);
-        if (k) {
-          let conf = Number(item.confidence);
-          if (!isNaN(conf)) {
-            if (conf <= 1.0 && conf > 0) conf = conf * 100;
-            scores[k] = conf;
-          }
+      // 6.2 อัปเดตป้ายข้อความใต้รูปชิ้นส่วน
+      const zonePreds = data.zone_predictions || {};
+      ['forehead', 'cheek_left', 'cheek_right', 'chin'].forEach(zone => {
+        const tag = document.getElementById(`zone-tag-${zone}`);
+        if (tag && zonePreds[zone]) {
+          const p = zonePreds[zone];
+          tag.innerText = `${p.predicted_class} (${p.confidence}%)`;
         }
       });
 
-      const activeKeys = Object.keys(scores).filter(k => scores[k] > 0);
-      const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+      // 6.3 แสดงการ์ดสรุปสภาพผิวภาพรวม (Overall Card)
+      const overall = data.overall_evaluation;
+      if (overall) {
+        document.getElementById('overallType').innerText = overall.overall_type;
+        document.getElementById('overallDesc').innerText = overall.summary_th;
+        document.getElementById('overallRec').innerText = '💡 คำแนะนำ: ' + overall.recommendation;
+        overallCard.style.display = 'block';
 
-      // กระจายสัดส่วนคะแนนผิวให้สัมพันธ์กันตามธรรมชาติ
-      if (activeKeys.length === 1) {
-        const topK = activeKeys[0];
-        const topVal = scores[topK];
-        const remainder = Math.max(0, 100 - topVal);
+        // 6.4 แสดงเปอร์เซ็นต์จริงของ Skin Profile จากค่าที่ Backend คำนวณ
+        resultsBox.style.display = 'block';
+        const profile = overall.profile || { normal: 25, oily: 25, dry: 25, acne: 25 };
+        
+        const setBar = (id, val) => {
+          const num = Number(val || 0).toFixed(1);
+          document.getElementById(`score-${id}`).innerText = `${num}%`;
+          document.getElementById(`bar-${id}`).style.width = `${num}%`;
+        };
 
-        if (topK === 'combination') {
-          scores.oily = remainder * 0.45;
-          scores.normal = remainder * 0.35;
-          scores.dry = remainder * 0.20;
-        } else if (topK === 'oily') {
-          scores.combination = remainder * 0.45;
-          scores.normal = remainder * 0.35;
-          scores.dry = remainder * 0.20;
-        } else if (topK === 'dry') {
-          scores.normal = remainder * 0.50;
-          scores.combination = remainder * 0.30;
-          scores.oily = remainder * 0.20;
-        } else {
-          scores.oily = remainder * 0.35;
-          scores.dry = remainder * 0.35;
-          scores.combination = remainder * 0.30;
-        }
-      } else if (totalScore > 0) {
-        const factor = 100 / totalScore;
-        for (const k of Object.keys(scores)) {
-          scores[k] = scores[k] * factor;
-        }
+        setBar('normal', profile.normal);
+        setBar('oily', profile.oily);
+        setBar('dry', profile.dry);
+        setBar('combination', profile.acne);
+
+        // 6.5 โหลดรูปโปสเตอร์ที่ถูกต้อง
+        const posterKey = overall.type_key || 'normal';
+        const posterUrl = POSTER_MAP[posterKey] || '/image/normal.png';
+        posterImg.src = posterUrl;
+        btnDownloadPoster.href = posterUrl;
+        btnDownloadPoster.download = `AuraSkin-${posterKey.toUpperCase()}.png`;
+        posterContainer.style.display = 'block';
       }
-
-      // แสดงเปอร์เซ็นต์บนแถบความคืบหน้า
-      for (const [key, val] of Object.entries(scores)) {
-        const scoreElem = document.getElementById(`score-${key}`);
-        const barElem = document.getElementById(`bar-${key}`);
-        if (scoreElem) scoreElem.innerText = `${val.toFixed(1)}%`;
-        if (barElem) barElem.style.width = `${Math.min(100, Math.max(0, val))}%`;
-      }
-
-      // หาประเภทผิวที่มีเปอร์เซ็นต์เยอะที่สุด
-      let maxClass = 'normal';
-      let maxVal = -1;
-      for (const [k, v] of Object.entries(scores)) {
-        if (v > maxVal) {
-          maxVal = v;
-          maxClass = k;
-        }
-      }
-
-      // แสดงรูปโปสเตอร์คำแนะนำตามคลาสสูงสุด
-      const posterUrl = POSTER_MAP[maxClass] || '/image/normal.png';
-      posterImg.src = posterUrl;
-      btnDownloadPoster.href = posterUrl;
-      btnDownloadPoster.download = `AuraSkin-Guide-${maxClass.toUpperCase()}.png`;
-      posterContainer.style.display = 'block';
     }
 
     // 7. จัดการการอัปโหลดไฟล์รูปภาพ
@@ -1044,7 +1067,7 @@
         liveCanvas.style.display = 'none';
 
         btnCapture.disabled = true;
-        btnCapture.innerText = "⏳ AI กำลังสแกนรูปภาพ...";
+        btnCapture.innerText = "⏳ AI กำลังสแกนรูปภาพ 4 จุด...";
 
         try {
           const res = await fetch('/api/analyze', {
@@ -1054,17 +1077,11 @@
           });
           const data = await res.json();
           if (data.success) {
-            document.getElementById('crop-forehead').src = data.crops.forehead;
-            document.getElementById('crop-cheek_left').src = data.crops.cheek_left;
-            document.getElementById('crop-cheek_right').src = data.crops.cheek_right;
-            document.getElementById('crop-chin').src = data.crops.chin;
-            cropsContainer.style.display = 'block';
-
-            renderRoboflowResults(data.predictions);
+            renderAnalysisData(data);
             btnReset.style.display = 'inline-flex';
-            posterContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            overallCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           } else {
-            alert(data.error);
+            alert(data.error || "เกิดข้อผิดพลาดในการประมวลผล");
           }
         } catch {
           alert("ไม่สามารถเชื่อมต่อ Server ได้");
@@ -1077,6 +1094,7 @@
     }
 
     function resetCamera() {
+      overallCard.style.display = 'none';
       cropsContainer.style.display = 'none';
       resultsBox.style.display = 'none';
       posterContainer.style.display = 'none';
